@@ -32,7 +32,11 @@
 
   <!-- Giữa: hai lưới 3x3 đối diện + khay xí ngầu -->
   <section class="table" id="table">
-    <aside class="steps" id="steps" aria-label="Thứ tự lượt chơi"></aside>
+    <div class="sidecol">
+      <aside class="steps" id="steps" aria-label="Thứ tự lượt chơi"></aside>
+      <!-- Vòng khắc hệ -->
+      <aside class="wheel" id="wheel" title="Vòng khắc hệ: A → B nghĩa là A khắc B (+1 sát thương), bị khắc −1 (tối thiểu 1)"></aside>
+    </div>
     <div class="boards">
     <div class="boardwrap enemy">
       <div class="boardlabel"><b>Máy</b><span class="rows"><i>Sau</i><i>Giữa</i><i>Trước</i></span></div>
@@ -58,8 +62,6 @@
   </aside>
 </main>
 
-<!-- Vòng khắc hệ (góc màn hình) -->
-<aside class="wheel" id="wheel" title="Vòng khắc hệ: A → B nghĩa là A khắc B (+1 sát thương), bị khắc −1 (tối thiểu 1)"></aside>
 
 <div class="banner" id="banner" hidden></div>
 <div class="toast" id="toast" hidden></div>

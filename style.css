@@ -64,7 +64,8 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
 .boards{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:0;min-width:0}
 
 /* ---------- bàn người chơi: thứ tự lượt ---------- */
-.steps{flex:none;width:190px;display:flex;flex-direction:column;gap:6px;background:rgb(255 255 255/.93);border:var(--bd);border-radius:16px;padding:8px;box-shadow:0 3px 0 var(--ink);align-self:center}
+.sidecol{flex:none;width:190px;display:flex;flex-direction:column;gap:8px;align-self:center}
+.steps{width:100%;display:flex;flex-direction:column;gap:6px;background:rgb(255 255 255/.93);border:var(--bd);border-radius:16px;padding:8px;box-shadow:0 3px 0 var(--ink)}
 .steps .whoturn{font-family:var(--display);font-size:16px;text-align:center;border-radius:10px;padding:2px 0;background:var(--cream)}
 .steps .whoturn.P{background:#d3f3d6}.steps .whoturn.B{background:#ffd9d4}
 .rounds{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
@@ -74,7 +75,7 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
 .step b{display:block;font-family:var(--display);font-size:13.5px;line-height:1.15}
 .step small{display:block;font-size:11px;line-height:1.25;color:var(--ink2)}
 .step.done{opacity:.45}.step.done b::after{content:" ✓";color:var(--green)}
-.step.on{opacity:1;border:2.5px solid var(--ink);transform:translateX(6px) scale(1.04);box-shadow:0 4px 0 var(--ink);animation:stepin .35s}
+.step.on{opacity:1;border:2.5px solid var(--ink);transform:scale(1.03);box-shadow:0 4px 0 var(--ink);animation:stepin .35s}
 .step.on.P{background:#d3f3d6}.step.on.B{background:#ffd9d4}
 .steps .step:nth-child(3){background:#ece5ff;border-color:#8b55db;opacity:.9}
 .steps .step.hint:nth-child(3){opacity:1;border-style:solid;box-shadow:0 0 0 3px var(--sun);animation:pulse2 1.2s infinite}
@@ -168,9 +169,9 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
 .hcard.back{cursor:default}
 
 /* ---------- wheel ---------- */
-.wheel{position:fixed;left:272px;bottom:14px;width:150px;height:158px;background:rgb(255 255 255/.94);border:var(--bd);border-radius:18px;box-shadow:0 3px 0 var(--ink);padding:4px;z-index:5}
+.wheel{width:160px;align-self:center;aspect-ratio:150/158;background:rgb(255 255 255/.94);border:var(--bd);border-radius:18px;box-shadow:0 3px 0 var(--ink);padding:4px}
 .wheel svg{width:100%;height:100%}
-.wheel.min{width:46px;height:46px}
+
 
 /* ---------- banner, toast, modal ---------- */
 .banner{position:fixed;left:50%;top:calc(var(--top) + 8px);transform:translateX(-50%);background:var(--ink);color:var(--cream);border-radius:14px;padding:8px 14px;font-weight:700;z-index:20;display:flex;gap:10px;align-items:center;box-shadow:0 4px 0 #000}
@@ -213,5 +214,6 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
   .layout{padding:6px;gap:8px}
   .tray{padding:6px}
   .panel.left .logbox{max-height:240px}
-  .wheel{position:static;margin:0 auto 12px;width:170px;height:178px}
+  .sidecol{width:100%}
+  .wheel{width:170px;margin:0 auto}
 }

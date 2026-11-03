@@ -1036,7 +1036,6 @@ function bindUI() {
   $('#btnEnd').onclick = () => endSession();
   setInterval(() => { if (S && S.phase === 'play' && !S.over) renderStatus(); }, 1000);
   $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && S && S.phase !== 'setup') closeModal(); });
-  $('#wheel').addEventListener('dblclick', () => $('#wheel').classList.toggle('min'));
 }
 function doAct(a) {
   switch (a) {
@@ -1179,7 +1178,7 @@ function rulesModal() {
   const refs = ['Luật nhanh', 'Trạng thái - từ khóa', 'Kỹ năng đặc biệt', 'Đặc tính', '5 vai trò', 'Chọn đội · Draft', 'Ván 0 · ván đầu tiên', 'Công trình - Xe ①', 'Công trình - Xe ②'];
   openModal(`<h2>Luật nhanh v6.5</h2>
     <p><b>Lượt 5 bước:</b> Đầu lượt (bỏ Khiên, Đau −2 ❤, nội tại) → Thảy 5 xí ngầu (thảy lại 1 lần) → Gán xí ngầu (viên hệ X kích hoạt 1 quái hệ X theo mặt) → Thi triển → Cuối lượt (bỏ Choáng/Yếu/Hăng hái; viên dư +1 ✦, giữ tối đa 3).</p>
-    <p><b>Trên bàn này:</b> kéo xí ngầu lên quái để thi triển; ô viền đỏ là mục tiêu hợp lệ (Cận chiến chỉ đánh hàng gần nhất, Khiêu khích che đồng đội kề, Xuyên bỏ qua Khiêu khích). Nút −/+ trên thẻ để chỉnh ❤ tay; Khiên & trạng thái chỉnh ở khung xem thẻ. Nhấp đúp vòng khắc hệ để thu gọn.</p>
+    <p><b>Trên bàn này:</b> kéo xí ngầu lên quái để thi triển; ô viền đỏ là mục tiêu hợp lệ (Cận chiến chỉ đánh hàng gần nhất, Khiêu khích che đồng đội kề, Xuyên bỏ qua Khiêu khích). Nút −/+ trên thẻ để chỉnh ❤ tay; Khiên & trạng thái chỉnh ở khung xem thẻ.</p>
     <div class="rules">${refs.map(r => `<img src="assets/cards/reference/${encodeURIComponent(r)}.png" alt="${esc(r)}" loading="lazy">`).join('')}</div>
     <div class="foot"><button class="btn primary" data-close>Đóng</button></div>`);
 }
