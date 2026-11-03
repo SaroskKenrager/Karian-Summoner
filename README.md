@@ -25,6 +25,9 @@ assets/cards/back-monster.png, back-building.png   # mặt lưng
 assets/tokens/                       # energy.png, pain/stun/weak/rage.svg, shield.svg, heal.svg, damage.svg
 assets/icons/                        # icon hệ, vai trò, Trái cây
 assets/board/mat-bg.jpg              # nền thảm sân
+assets/art/monsters/, assets/art/buildings/  # ảnh quái / nhà / xe gốc (từ Karian-Library)
+assets/ui/                           # ảnh Victory / Defeat
+tests/rules.html + rules.test.js     # 29 ca kiểm luật — mở trên trình duyệt
 tools/extract_cards.js               # tách ảnh thẻ từ file in cards.html (Playwright)
 ```
 
@@ -38,6 +41,10 @@ tools/extract_cards.js               # tách ảnh thẻ từ file in cards.html
 6. Hết 8 vòng hoặc một bên hết quái → tính điểm (🍇 quái đã hạ + 🍇 quái còn sống; hòa thì so số quái trên sân).
 
 Mọi chỉ số vẫn chỉnh tay được: nút −/+ ❤ trên từng thẻ, Khiên và 4 trạng thái ở khung xem thẻ, ✦ ở bảng người chơi. Nhấp đúp vòng khắc hệ (góc dưới) để thu gọn.
+
+## Kiểm tra luật
+
+Mở `tests/rules.html` sau mỗi lần sửa code: 29 ca kiểm luật lõi v6.5 (chuyển từ Engine v6.5) phải đều ✅.
 
 ## Công cụ hỗ trợ (v7.1)
 

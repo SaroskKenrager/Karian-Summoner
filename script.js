@@ -45,6 +45,9 @@ const bldImg = id => 'assets/cards/buildings/' + encodeURIComponent(id) + '.png'
 const BACK_M = 'assets/cards/back-monster.png', BACK_B = 'assets/cards/back-building.png';
 const TOK = { pain: 'assets/tokens/pain.svg', stun: 'assets/tokens/stun.svg', weak: 'assets/tokens/weak.svg', rage: 'assets/tokens/rage.svg', shield: 'assets/tokens/shield.svg', energy: 'assets/tokens/energy.png' };
 const elIcon = e => 'assets/icons/' + e + '.png';
+const artImg = id => 'assets/art/monsters/' + encodeURIComponent(id) + '.webp';     // A · ảnh quái gốc (Karian-Library/Monster system)
+const bldArt = id => 'assets/art/buildings/' + encodeURIComponent(id) + '.webp';    // B · ảnh nhà / xe gốc (Karian-Library/Decoration)
+const UI_IMG = { win: 'assets/ui/victory.webp', lose: 'assets/ui/defeat.webp', draw: 'assets/ui/battle.webp' };  // C
 
 /* ================= trạng thái ván ================= */
 let S = null; let UID = 1;
@@ -81,15 +84,15 @@ function banner(html) { const b = $('#banner'); if (!html) { b.hidden = true; b.
  * mỗi lần vẽ, ô đọc FX và đặt animation-delay âm = thời gian đã trôi → hiệu ứng chạy tiếp, không bị giật lại từ đầu.
  */
 const FX = {};
-function fx(o, i, cls, dur = 650) {
-  FX[`${o}:${i}`] = { cls, t: performance.now(), dur };
+function fx(o, i, cls, dur = 650, data) {
+  FX[`${o}:${i}`] = { cls, t: performance.now(), dur, data };
   const el = document.querySelector(`.cell[data-o="${o}"][data-i="${i}"]`);
   if (el) { el.classList.remove('fx-hit', 'fx-heal', 'fx-aim'); el.style.setProperty('--fxd', '0ms'); void el.offsetWidth; el.classList.add(cls); }
 }
 function fxOf(o, i) {
   const k = `${o}:${i}`, f = FX[k]; if (!f) return null;
   const el = performance.now() - f.t; if (el > f.dur) { delete FX[k]; return null; }
-  return { cls: f.cls, el };
+  return { cls: f.cls, el, data: f.data };
 }
 function flash(o, i, heal) { fx(o, i, heal ? 'fx-heal' : 'fx-hit', heal ? 700 : 650); }
 /** Thanh máu: nhớ ❤ đã hiển thị để vẽ phần "máu vừa mất" tụt dần */
@@ -108,6 +111,21 @@ function notify(msg, o) { log('✦ ' + msg, o, 'pas'); toast(msg); }
 function spend(o, n, why) { const s = side(o); s.energy -= n; S.stats[o].spent += n; log(`${who(o)} trả ${n} ✦: ${why}`, o); }
 const houseActive = o => side(o).grid.some(x => x && x.kind === 'bld' && BLD[x.id].kind === 'house' && x.counter > 0);
 function setStep(n) { if (!S) return; S.step = n; renderSteps(); }
+/** D · Bước 3 (Gán): viên không có quái cùng màu trên sân → +1 ✦ NGAY (dùng được trong lượt này, như Engine v6.5).
+ *  Gọi khi người chơi bắt đầu gán / tiêu ✦ / kết thúc lượt; Máy gọi sau lần thảy lại miễn phí.
+ *  Viên mặt 6 đang cần cho kỹ năng đa sắc thì giữ lại. */
+function lockDead(o) {
+  const s = side(o); if (!s.rolled || s.locked) return 0;
+  s.locked = true; if (T().noEnergy) return 0;
+  const els = new Set(monsOf(o).map(i => M(s.grid[i]).element));
+  const needs6 = new Set(); monsOf(o).forEach(i => M(s.grid[i]).skills.forEach(sk => { if (sk.multicolor === 'any6') needs6.add('*'); else (sk.multicolor || []).forEach(([e]) => needs6.add(e)); }));
+  const dead = s.dice.filter(d => !d.used && !els.has(d.el) && !(d.face === 6 && (needs6.has(d.el) || needs6.has('*'))));
+  if (!dead.length) return 0;
+  dead.forEach(d => { d.used = true; d.toE = true; });
+  const b = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + dead.length); S.stats[o].gained += s.energy - b;
+  log(`${who(o)}: ${dead.length} viên không có quái cùng màu (${dead.map(d => EL_VI[d.el]).join(', ')}) → +${s.energy - b} ✦${s.energy - b < dead.length ? ' (đầy 3, phần dư bỏ)' : ''}`, o);
+  render(); return dead.length;
+}
 
 /* ================= xí ngầu ================= */
 function dieSvg(n, el) {
@@ -203,6 +221,7 @@ async function ko(o, i) {
     u.spiritUsed = true; u.hp = m.trait_bot.hp; u.shield = 0; u.st = {};
     log(`${uName(u)} (<i>${esc(m.trait_bot.n)}</i>) loại dự bị ${uName(r)} để quay lại với ${u.hp} ❤`, o); render(); return;
   }
+  fx(o, i, 'fx-ko', 1000, { id: u.id });
   s.grid[i] = null; s.dead.push(u);
   if (!u.scored) { u.scored = true; side(foe(o)).trophies.push(u); }
   log(`💥 ${uName(u)} bị hạ! ${who(foe(o))} +${m.price} 🍇`, o);
@@ -261,7 +280,7 @@ async function runEffects(o, src, si, effects, chooser, label, fromDead) {
   const fo = foe(o);
   for (const e of effects) {
     if (S.over) return ctx;
-    if (e.k === 'rev') { await revive(o, e.v, chooser); continue; }
+    if (e.k === 'rev') { await revive(o, e.v, chooser, src); continue; }
     if (e.k === 'en') { const s = side(o), b = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + e.v); S.stats[o].gained += s.energy - b; log(`${who(o)} +${s.energy - b} ✦`, o); render(); continue; }
     const enemy = ENEMY_CODES.includes(e.t);
     let targets = ctx.tg[e.t];
@@ -321,8 +340,8 @@ async function useVehicle(o, i) {
   side(o).bldUsed.push(b); S.stats[o].blds.push(b.id);
   log(`${esc(B.name)} đã giúp xong → rời sân`, 'P'); render();
 }
-async function revive(o, hp, chooser) {
-  const s = side(o), cands = s.dead.slice();
+async function revive(o, hp, chooser, src) {
+  const s = side(o), cands = s.dead.filter(u => u !== src);   // “1 đồng đội”: không tự hồi sinh chính mình
   const empty = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter(i => !s.grid[i]);
   if (!cands.length || !empty.length || monsOf(o).length >= D.rules.team.on_field) { log('Hồi sinh: không có đồng đội bị hạ / ô trống', o); return; }
   const u = cands.sort((a, b) => M(b).price - M(a).price)[0];
@@ -371,8 +390,8 @@ function playerChooser(req) {
   return new Promise(resolve => {
     const chosen = [];
     pendingPick = { req, chosen, resolve };
-    if (!beam) { const a = S.acting && document.querySelector(`.cell[data-o="${S.acting.o}"][data-i="${S.acting.i}"]`); if (a) S.beamFromRect = a.getBoundingClientRect(); }
-    setTimeout(() => { if (pendingPick && pendingPick.req === req && S.beamFromRect) startBeam(S.beamFromRect, req.effect.k === 'd' || req.effect.k === 'st' || req.effect.k === 'loss' ? 'atk' : 'nrg'); }, 0);
+    if (!beam && S.beamKind !== 'nrg') { const a = S.acting && document.querySelector(`.cell[data-o="${S.acting.o}"][data-i="${S.acting.i}"] .art`); S.beamFromRect = a ? a.getBoundingClientRect() : null; S.beamKind = 'aim'; }
+    setTimeout(() => { if (pendingPick && pendingPick.req === req && S.beamFromRect) startBeam(S.beamFromRect, S.beamKind || 'aim'); }, 0);
     const eff = req.effect, kind = { d: `⚔ ${eff.v} sát thương`, h: `hồi ${eff.v} ❤`, s: `+${eff.v} Khiên`, st: `gây ${eff.v}`, bf: `${eff.v}` }[eff.k] || '';
     banner(`<span><b>${esc(req.label)}</b>: chọn ${req.pick > 1 ? req.pick + ' mục tiêu' : 'mục tiêu'} (${esc(eff.printed || '')}) · ${kind}</span>` +
       (req.pick > 1 ? `<button class="btn sm" data-pick="done">Xong</button>` : '') + `<button class="btn sm warn" data-pick="skip">Bỏ qua</button>`);
@@ -397,9 +416,15 @@ function moveBeam(x, y) {
   let ex = x, ey = y;
   if (hit) { const r = hit.getBoundingClientRect(); ex = r.left + r.width / 2; ey = r.top + r.height / 2; }
   const cx = (beam.x + ex) / 2, cy = Math.min(beam.y, ey) - Math.max(40, Math.abs(ex - beam.x) * 0.25);
-  const d = `M${beam.x},${beam.y} Q${cx},${cy} ${ex},${ey}`;
+  // mũi tên: lùi đường cong lại để đầu mũi tên nằm đúng con trỏ
+  const dx = ex - cx, dy = ey - cy, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+  const isAim = beam.kind === 'aim', back = isAim ? 22 : 0;
+  const bx = ex - ux * back, by = ey - uy * back;
+  const d = `M${beam.x},${beam.y} Q${cx},${cy} ${bx},${by}`;
   svg.querySelectorAll('path').forEach(p => p.setAttribute('d', d));
-  const c = svg.querySelector('circle'); c.setAttribute('cx', ex); c.setAttribute('cy', ey);
+  const w = 17, px = -uy * w, py = ux * w;
+  svg.querySelector('.head').setAttribute('points', `${ex},${ey} ${bx + px},${by + py} ${bx - px},${by - py}`);
+  const c = svg.querySelector('.ring'); c.setAttribute('cx', ex); c.setAttribute('cy', ey);
   svg.classList.toggle('lock', !!hit);
 }
 function stopBeam() { beam = null; const svg = document.getElementById('beam'); if (svg) svg.setAttribute('class', 'beam'); }
@@ -418,7 +443,7 @@ function onPickCell(o, i) {
 /* ================= vòng lượt ================= */
 function startTurn(o) {
   const s = side(o); const tasks = [];
-  s.dice = []; s.rolled = false; s.rerolled = false; s.summoned = false; s.drew = false;
+  s.dice = []; s.rolled = false; s.rerolled = false; s.summoned = false; s.drew = false; s.locked = false;
   s.grid.forEach(x => { if (x && x.kind === 'bld') x.moved = false; });
   monsOf(o).forEach(i => { const u = s.grid[i]; if (u.shield) log(`${uName(u)} bỏ ${u.shield} Khiên`, o); u.shield = 0; u.acted = false; });
   // Đau: mất 2 ❤ thẳng rồi bỏ token (có kích hoạt Ngưỡng)
@@ -461,9 +486,7 @@ async function endTurn(o) {
   if (cleared.length) log(`Cuối lượt: bỏ Choáng/Yếu/Hăng hái trên ${cleared.join(', ')}`, o);
   // Viên không có quái cùng màu trên sân → +1 ✦ (mặt trống không đổi thành ✦)
   if (!T().noEnergy) {
-    const els = new Set(monsOf(o).map(i => M(s.grid[i]).element));
-    const left = s.dice.filter(d => !d.used && d.face && !els.has(d.el)).length;
-    if (left) { const before = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + left); S.stats[o].gained += s.energy - before; log(`${who(o)}: ${left} viên không có quái cùng màu → +${s.energy - before} ✦`, o); }
+    lockDead(o);
     if (houseActive(o) && s.energy > D.rules.energy.cap_with_house_end_of_turn) { log(`${who(o)}: Nhà còn xí ngầu → chỉ giữ tối đa 2 ✦ (bỏ ${s.energy - 2})`, o); s.energy = D.rules.energy.cap_with_house_end_of_turn; }
   }
   s.dice = []; s.rolled = false;
@@ -510,7 +533,7 @@ function gameOver(reason) {
   const kind = p.total !== b.total ? (p.total > b.total ? 'win' : 'lose') : p.field !== b.field ? (p.field > b.field ? 'win' : 'lose') : 'draw';
   showResultScene(kind);
   openModal(`<div class="result ${kind}"><div class="burst">${kind === 'win' ? Array.from({ length: 24 }, (_, k) => `<i style="--k:${k};--x:${rnd(100)}%;--c:${Object.values(COL)[k % 5]}"></i>`).join('') : ''}</div>
-    <img class="rimg" src="${kind === 'lose' ? BACK_M : 'assets/icons/Fruit.webp'}" alt=""><h2>${kind === 'win' ? 'CHIẾN THẮNG!' : kind === 'lose' ? 'THẤT BẠI' : 'HÒA'}</h2><p class="rsub">${res}</p></div><p>${esc(reason)}.</p>
+    <img class="rimg" src="${UI_IMG[kind]}" alt="${kind}"><h2>${kind === 'win' ? 'CHIẾN THẮNG!' : kind === 'lose' ? 'THẤT BẠI' : 'HÒA'}</h2><p class="rsub">${res}</p></div><p>${esc(reason)}.</p>
     <table class="score"><tr><th></th><th>🍇 quái đã hạ</th><th>🍇 quái còn sống</th><th>Tổng</th><th>Quái trên sân</th></tr>
     <tr><td><b>Bạn</b></td><td>${p.ko}</td><td>${p.alive}</td><td><b>${p.total}</b></td><td>${p.field}</td></tr>
     <tr><td><b>Máy</b></td><td>${b.ko}</td><td>${b.alive}</td><td><b>${b.total}</b></td><td>${b.field}</td></tr></table>
@@ -523,7 +546,7 @@ function showResultScene(kind) { document.body.classList.remove('scene-win', 'sc
 
 /* ================= xí ngầu người chơi ================= */
 function prepPlayerDice() {
-  const s = side('P'); s.dice = []; s.rolled = false; s.rerolled = false;
+  const s = side('P'); s.dice = []; s.rolled = false; s.rerolled = false; s.locked = false;
   S.chooseColors = S.firstTurn && S.first === 'P' ? T().firstDice : 0;
   S.colorPick = [];
 }
@@ -554,17 +577,19 @@ function rerollSelected(paid, only) {
   else log(`Bạn thảy lại: ${sel.map(d => EL_VI[d.el] + ' ' + d.face).join(' · ')}`, 'P');
   picked = null; render(true);
 }
-function recolorSelected(el, die) {
-  const s = side('P'); const sel = die ? [die] : s.dice.filter(d => d.sel && !d.used);
+function recolorSelected(el, die, o = 'P') {
+  const s = side(o); const sel = die ? [die] : s.dice.filter(d => d.sel && !d.used);
   if (sel.length !== 1) { toast('Chọn đúng 1 viên để đổi màu.'); return; }
   if (s.energy < 3) { toast('Đổi màu cần 3 ✦.'); return; }
-  spend('P', 3, `đổi màu viên ${EL_VI[sel[0].el]} ${sel[0].face} → ${EL_VI[el]}`); sel[0].el = el; sel[0].sel = false; picked = null; render();
+  const d = sel[0];
+  spend(o, 3, `đổi màu viên ${EL_VI[d.el]} ${d.face} → ${EL_VI[el]}`); d.el = el; d.sel = false; d.toE = false; d.used = false; d.anim = true; picked = null; render(true);
 }
 async function assignDie(di, ci) {
   if (S.busy || S.turn !== 'P' || S.over) return;
   const s = side('P'), die = s.dice[di], u = s.grid[ci];
   if (!die || die.used) return;
   if (!isMon(u)) { toast('Thả xí ngầu lên một quái của bạn.'); return; }
+  lockDead('P'); if (die.used) { toast('Viên này không có quái cùng màu nên đã thành ✦.'); return; }
   if (die.el !== M(u).element) { toast(`Viên ${EL_VI[die.el]} chỉ kích hoạt quái hệ ${EL_VI[die.el]}.`); return; }
   if (u.st.stun) { toast(`${M(u).name} đang Choáng, không dùng được kỹ năng.`); return; }
   if (u.acted) { toast('Mỗi quái chỉ kích hoạt 1 lần mỗi lượt.'); return; }
@@ -577,7 +602,7 @@ async function assignDie(di, ci) {
   S.busy = true; S.acting = { o: 'P', i: ci }; setStep(4); render();
   log(`${uName(u)} · <b>${esc(f.skill.name)}</b>${f.skill.tier === 'U' ? ' ★' : ''} (${EL_VI[die.el]} ${die.face})`, 'P');
   await runEffects('P', u, ci, f.skill.effects, playerChooser, f.skill.name);
-  S.busy = false; S.acting = null;
+  S.busy = false; S.acting = null; S.beamFromRect = null; S.beamKind = null;
   if (!S.over) setStep(s.dice.some(d => !d.used && activators('P', d, s.dice).length) ? 3 : 4);
   render();
 }
@@ -585,6 +610,7 @@ function endPlayerTurn() {
   if (S.busy || S.turn !== 'P' || S.over) return;
   const s = side('P');
   if (!s.rolled) { if (!confirm('Bạn chưa thảy xí ngầu. Kết thúc lượt?')) return; }
+  lockDead('P');
   const usable = s.dice.filter(d => !d.used && activators('P', d, s.dice).length);
   if (usable.length && !confirm(`Còn ${usable.length} viên gán được (luật: viên gán được phải dùng). Vẫn kết thúc lượt?`)) return;
   nextTurn();
@@ -620,95 +646,135 @@ function summon(o, u, cell, quiet) {
   const tt = M(u).trait_top;
   if (tt && tt.k === 'build') runTopTrait(o, u, true);
 }
-function botSummon() {
+/** Thuật triệu hồi của Máy (spol 'smart'): biết xí ngầu thì chọn quái hợp xí ngầu nhất, chưa biết thì ưu tiên Khiêu khích → đắt */
+function botSummon(dice) {
   const s = side('B');
   if (s.summoned || monsOf('B').length >= D.rules.team.on_field || !s.reserve.length) return false;
   const empty = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter(i => !s.grid[i]); if (!empty.length) return false;
-  const pick = botPickField(s.reserve, 1)[0];
+  const needT = !monsOf('B').some(i => isTaunt(s.grid[i]));
+  let pick;
+  if (!dice) pick = s.reserve.slice().sort((a, b) => ((isTaunt(b) && needT) - (isTaunt(a) && needT)) || (M(b).price - M(a).price))[0];
+  else {
+    const val = u => {
+      let m = 0;
+      dice.filter(d => !d.used).forEach(d => {
+        if (d.el !== M(u).element) return;
+        const f = findSkill(u, d, dice); if (!f) return;
+        const dead = !monsOf('B').some(i => M(s.grid[i]).element === d.el);
+        m = Math.max(m, skillValue(f.skill) - bestDie('B', d.el, d.face, dice) - (dead ? 1 : 0));
+      });
+      return m + 0.3 * M(u).price + (isTaunt(u) && needT ? 2 : 0);
+    };
+    pick = s.reserve.slice().sort((a, b) => val(b) - val(a))[0];
+  }
   summon('B', pick, bestCellFor('B', pick, empty)); return true;
 }
-function skillValue(sk, o) { const miss = o ? sum(monsOf(o).map(i => side(o).grid[i].maxHp - side(o).grid[i].hp)) : 9; return sum(sk.effects.map(e => (e.k === 'd' ? e.v * ({ row: 2, col: 2, cross: 2.2, all: 2.6, three: 2.6, adjE: 1.5 }[e.t] || 1) : e.k === 'h' ? Math.min(e.v * (e.t === 'team' ? 1.6 : 0.8), miss * 0.8) : e.k === 's' ? e.v * (e.t === 'team' ? 1.5 : 0.7) : 1.2))); }
+/* ---- E · cách Máy chấm điểm, chép từ Engine v6.5 (sim6.parts_value / sim64.turn) ---- */
+const TF = { one: 1, other: 1, anyE: 1, adjE: 1, three: 2.2, row: 1.5, col: 1.5, cross: 1.8, all: 2.5, self: 1, ally: 1, front: 1, adj: 1.2, selfadj: 2, team: 2.2, deadA: 1, tauntE: 1 };
+const STV = { 'Đau': 1.5, 'Choáng': 1.5, 'Yếu': 0.75, 'Hăng hái': 0.75 };
+function partsValue(effects) {
+  return sum(effects.map(e => { const f = TF[e.t] || 1; return e.k === 'd' ? 2 * e.v * f : e.k === 'h' ? 1.5 * e.v * f : e.k === 's' ? e.v * f : e.k === 'rev' ? 2 * e.v : e.k === 'loss' ? 2 * e.v : (e.k === 'st' || e.k === 'bf') ? 2 * (STV[e.v] || 1) * f : 0; }));
+}
+function skillValue(sk) { return partsValue(sk.effects); }
+/** giá trị tốt nhất mà viên (el, face) mang lại cho các quái sẵn sàng */
+function bestDie(o, el, face, dice) {
+  return Math.max(0, ...activators(o, { el, face, used: false }, dice || []).map(a => skillValue(a.f.skill)));
+}
+const expDie = (o, el, dice) => sum([1, 2, 3, 4, 5, 6].map(f => bestDie(o, el, f, dice))) / 6;
 function planBot(dice, o = 'B') {
-  // gán từng viên cho quái tốt nhất
-  const plan = [];
-  const saved = dice.map(d => d.used);
-  const order = dice.map((d, k) => k).sort((a, b) => dice[b].face - dice[a].face); // viên 6 (có thể cần xí ngầu phụ) trước
-  for (const k of order) {
-    const d = dice[k]; if (d.used) continue;
-    const acts = activators(o, d, dice).filter(a => !plan.some(p => p.i === a.i));
-    if (!acts.length) continue;
-    const best = acts.sort((a, b) => skillValue(b.f.skill, o) - skillValue(a.f.skill, o))[0];
-    d.used = true; best.f.extra.forEach(j => (dice[j].used = true));
-    plan.push({ i: best.i, u: best.u, skill: best.f.skill, die: d, extra: best.f.extra });
+  // Gán theo cặp (viên, quái) giá trị cao nhất (Engine v6.5): mỗi viên 1 quái, mỗi quái 1 lần
+  const s = side(o), late = S.maxRounds - S.round <= 1, opts = [];
+  dice.forEach((d, k) => {
+    if (d.used) return;
+    activators(o, d, dice).forEach(a => opts.push({ v: skillValue(a.f.skill) + 0.01 * M(a.u).price, k, a, gift: false }));
+    // Thiên phú: đổi viên thành mặt 6 khi lời ≥ 5 hoặc sắp hết trận
+    monsOf(o).map(i => ({ i, u: s.grid[i] })).forEach(({ i, u }) => {
+      const tb = M(u).trait_bot; if (!tb || tb.k !== 'gifted' || u.giftUsed || u.acted || u.st.stun || d.el !== M(u).element || d.face === 6) return;
+      const f6 = findSkill(u, { el: d.el, face: 6, used: false }, dice); if (!f6) return;
+      const cur = findSkill(u, d, dice), gain = skillValue(f6.skill) - (cur ? skillValue(cur.skill) : 0);
+      if (gain >= 5 || (late && gain > 0)) opts.push({ v: skillValue(f6.skill) + 0.01 * M(u).price - (late ? 0 : 2.5), k, a: { i, u, f: f6 }, gift: true });
+    });
+  });
+  opts.sort((a, b) => b.v - a.v);
+  const usedD = new Set(), usedU = new Set(), plan = [];
+  for (const op of opts) {
+    if (usedD.has(op.k) || usedU.has(op.a.i) || op.a.f.extra.some(j => usedD.has(j))) continue;
+    usedD.add(op.k); op.a.f.extra.forEach(j => usedD.add(j)); usedU.add(op.a.i);
+    plan.push({ i: op.a.i, u: op.a.u, skill: op.a.f.skill, die: dice[op.k], extra: op.a.f.extra, gift: op.gift });
   }
-  dice.forEach((d, k) => (d.used = saved[k]));
   return plan;
 }
 async function botTurn() {
-  const s = side('B');
+  // Lượt của Máy theo Engine v6.5 (sim64.turn): gọi dự bị → thảy → gọi theo xí ngầu → thảy lại → ✦ → gán → đổi màu → thi triển → Khiên
+  const s = side('B'), t = T();
   await sleep(400);
-  if (botSummon()) { render(); await sleep(500); }
+  if (!monsOf('B').length && botSummon()) { render(); await sleep(500); }
+  if (!monsOf('B').length) return;
   setStep(2); await sleep(350);
-  // thảy
-  let els = diceColorsFor('B');
-  if (S.firstTurn && S.first === 'B') {
-    const fieldEls = [...new Set(monsOf('B').map(i => M(s.grid[i]).element))];
-    els = shuffle(fieldEls.concat(shuffle(EL_ORDER.filter(e => !fieldEls.includes(e))))).slice(0, T().firstDice);
-  }
+  let els = diceColorsFor('B'); const first = S.firstTurn && S.first === 'B';
+  if (first) { const have = EL_ORDER.filter(e => monsOf('B').some(i => M(s.grid[i]).element === e)); els = have.concat(EL_ORDER.filter(e => !have.includes(e))).slice(0, t.firstDice); }
   s.dice = els.map(el => ({ el, face: d6(), used: false }));
   s.rolled = true; render(true);
   log(`Máy thảy: ${s.dice.map(d => EL_VI[d.el] + ' ' + d.face).join(' · ')}`, 'B');
-  await sleep(800);
-  const fieldEls = new Set(monsOf('B').map(i => M(s.grid[i]).element));
-  const wasted = () => { const used = new Set(); planBot(s.dice).forEach(p => { used.add(p.die); }); return s.dice.filter(d => !used.has(d) && fieldEls.has(d.el)); };
-  // thảy lại 1 lần (miễn phí)
-  if (!(S.firstTurn && S.first === 'B') && !T().noReroll) {
-    const w = wasted().concat(s.dice.filter(d => fieldEls.has(d.el) && d.face <= 2 && !wasted().includes(d) && Math.random() < 0.3));
-    if (w.length) { w.forEach(d => { d.face = d6(); d.anim = true; }); log(`Máy thảy lại: ${w.map(d => EL_VI[d.el] + ' ' + d.face).join(' · ')}`, 'B'); render(true); await sleep(700); }
-    // trả 1 ✦ thảy lại khi ✦ đầy
-    const w2 = wasted();
-    if (w2.length && s.energy >= 3 && !T().noEnergy) { const b0 = EL_VI[w2[0].el] + ' ' + w2[0].face; w2[0].face = d6(); w2[0].anim = true; spend('B', 1, `thảy lại ${b0} → ${w2[0].face}`); render(true); await sleep(600); }
+  await sleep(750);
+  if (monsOf('B').length < D.rules.team.on_field && botSummon(s.dice)) { render(); await sleep(500); }
+  const ready = () => new Set(monsOf('B').filter(i => !s.grid[i].st.stun).map(i => M(s.grid[i]).element));
+  if (!first && !t.noReroll) {
+    // thảy lại miễn phí: viên nào đang kém hơn kỳ vọng của chính nó
+    const rr = s.dice.filter(d => ready().has(d.el) && bestDie('B', d.el, d.face, s.dice) < expDie('B', d.el, s.dice) - 0.01);
+    if (rr.length) { const b0 = rr.map(d => EL_VI[d.el] + ' ' + d.face); rr.forEach(d => { d.face = d6(); d.anim = true; }); log(`Máy thảy lại: ${rr.map((d, k) => b0[k] + ' → ' + d.face).join(' · ')}`, 'B'); render(true); await sleep(650); }
   }
-  // đổi màu (3 ✦): viên dư không có quái hệ đó → đổi sang hệ có thể dùng
-  setStep(3); await sleep(300);
-  if (T().energyActs && s.energy >= 3 && !houseActive('B')) {
-    const plan0 = planBot(s.dice); const usedDice = new Set(plan0.map(p => p.die));
-    const spare = s.dice.find(d => !usedDice.has(d) && !fieldEls.has(d.el));
-    if (spare) {
-      const acted = new Set(plan0.map(p => p.i));
-      for (const e of fieldEls) {
-        const test = { el: e, face: spare.face, used: false };
-        if (activators('B', test, s.dice).some(a => !acted.has(a.i)) && !s.dice.some(d => d.el === e && !usedDice.has(d))) {
-          spend('B', 3, `đổi màu viên ${EL_VI[spare.el]} ${spare.face} → ${EL_VI[e]}`); spare.el = e; render(true); await sleep(600); break;
-        }
-      }
+  setStep(3);
+  lockDead('B'); await sleep(250);
+  if (!first && !t.noEnergy) {
+    // trả 1 ✦ / viên khi lời ≥ 1 (giữ 3 ✦ nếu định đổi màu)
+    const canRe = t.energyActs && !houseActive('B');
+    const dup = new Set(monsOf('B').map(i => M(s.grid[i]).element)).size < monsOf('B').length;
+    const keep = canRe && dup && s.dice.some(d => d.toE) ? 3 : 0;
+    for (let n = 0; n < 6 && s.energy - 1 >= keep; n++) {
+      const cand = s.dice.filter(d => !d.used && ready().has(d.el)).map(d => ({ d, g: expDie('B', d.el, s.dice) - bestDie('B', d.el, d.face, s.dice) })).filter(x => x.g >= 1).sort((a, b) => b.g - a.g);
+      if (!cand.length) break;
+      const d = cand[0].d, b0 = EL_VI[d.el] + ' ' + d.face; d.face = d6(); d.anim = true; spend('B', 1, `thảy lại ${b0} → ${d.face}`); render(true); await sleep(550);
     }
   }
-  // thi triển
-  const plan = planBot(s.dice);
-  const prio = p => (p.skill.effects.some(e => e.k === 'bf') ? 0 : p.skill.effects.some(e => e.k === 'd') ? 1 : 2);
-  plan.sort((a, b) => prio(a) - prio(b));
-  log(plan.length ? `Máy gán: ${plan.map(p => `${EL_VI[p.die.el]} ${p.die.face} → ${uName(p.u)} (${esc(p.skill.name)})`).join(' · ')}` : 'Máy không gán được viên nào', 'B');
-  await sleep(500); setStep(4);
+  let plan = planBot(s.dice);
+  // đổi màu: viên đã thành ✦ → màu của quái còn rảnh có kỹ năng ở mặt đó
+  while (t.energyActs && !houseActive('B') && s.energy >= 3) {
+    const idle = monsOf('B').filter(i => !s.grid[i].st.stun && !plan.some(p => p.i === i));
+    const spare = s.dice.filter(d => d.toE);
+    let best = null;
+    spare.forEach(d => idle.forEach(i => { const u = s.grid[i], f = findSkill(u, { el: M(u).element, face: d.face, used: false }, s.dice); if (f && (!best || skillValue(f.skill) > best.v)) best = { d, u, v: skillValue(f.skill) }; }));
+    if (!best || best.v < 3) break;
+    recolorSelected(M(best.u).element, best.d, 'B'); await sleep(550);
+    plan = planBot(s.dice);
+  }
+  plan.sort((a, b) => (M(a.u).role_ai !== 'Support') - (M(b.u).role_ai !== 'Support'));   // Hỗ trợ trước
+  log(plan.length ? `Máy gán: ${plan.map(p => `${EL_VI[p.die.el]} ${p.gift ? '6 (Thiên phú)' : p.die.face} → ${uName(p.u)} (${esc(p.skill.name)})`).join(' · ')}` : 'Máy không gán được viên nào', 'B');
+  await sleep(450); setStep(4);
   for (const p of plan) {
     if (S.over) return;
-    const ci = s.grid.indexOf(p.u); if (ci < 0 || p.u.st.stun) continue;
+    const ci = s.grid.indexOf(p.u); if (ci < 0 || p.u.st.stun || p.die.used) continue;
+    if (p.gift) { p.die.face = 6; p.u.giftUsed = true; notify(`${uName(p.u)} · Thiên phú <i>${esc(M(p.u).trait_bot.n)}</i>: xí ngầu thành mặt 6`, 'B'); }
     const f = findSkill(p.u, p.die, s.dice); if (!f) continue;
     p.die.used = true; f.extra.forEach(j => (s.dice[j].used = true)); p.u.acted = true;
     S.acting = { o: 'B', i: ci }; render();
     log(`${uName(p.u)} · <b>${esc(f.skill.name)}</b>${f.skill.tier === 'U' ? ' ★' : ''} (${EL_VI[p.die.el]} ${p.die.face})`, 'B');
-    await sleep(650);
+    await sleep(600);
     await runEffects('B', p.u, ci, f.skill.effects, aiChooser, f.skill.name);
-    S.acting = null; render(); await sleep(650);
-    if (botSummon()) { render(); await sleep(400); }
+    S.acting = null; render(); await sleep(600);
   }
   if (S.over) return;
-  // +2 Khiên (2 ✦) cho quái nguy hiểm
-  if (T().energyActs && s.energy >= 2) {
-    const low = monsOf('B').map(i => ({ i, u: s.grid[i] })).filter(x => x.u.hp + x.u.shield <= 4).sort((a, b) => a.u.hp - b.u.hp)[0];
-    if (low) { spend('B', 2, `${uName(low.u)} +2 Khiên`); addShield('B', low.i, 2); render(); await sleep(500); }
+  if (botSummon()) { render(); await sleep(400); }   // quái chết giữa lượt → vẫn gọi được
+  // dồn ✦ thành Khiên (ưu tiên quái Khiêu khích, rồi quái ít ❤ + Khiên nhất); giữ 3 ✦ nếu đội có 2 quái cùng hệ để đổi màu
+  if (!t.noEnergy) {
+    const aliveEls = [...monsOf('B').map(i => s.grid[i]), ...s.reserve].map(u => M(u).element);
+    const save = t.energyActs && !houseActive('B') && new Set(aliveEls).size < aliveEls.length && s.energy >= 3;
+    while (!save && s.energy >= 2 && monsOf('B').length) {
+      const i = monsOf('B').sort((a, b) => (!isTaunt(s.grid[a]) - !isTaunt(s.grid[b])) || ((s.grid[a].hp + s.grid[a].shield) - (s.grid[b].hp + s.grid[b].shield)))[0];
+      spend('B', 2, `${uName(s.grid[i])} +2 Khiên`); addShield('B', i, 2); render(); await sleep(450);
+    }
   }
-  await sleep(400);
+  await sleep(300);
 }
 
 /* ================= kéo thả / thao tác ================= */
@@ -857,12 +923,15 @@ function renderGrid(o) {
       else if (e.k === 's') badge = `<span class="sklab ok">+${e.v} 🛡</span>`;
     }
     if (isMon(u)) {
-      const hidden = S.phase === 'place' && o === 'B';
+      const hidden = S.phase === 'place' && o === 'B', m = M(u);
       const drag = o === 'P' && !S.over ? `draggable="true" data-drag='${JSON.stringify({ type: 'cell', i })}'` : '';
-      inner = `<div class="unit ${u.st.stun ? 'stunned' : ''}" ${drag} data-view="${o}:${i}">
-        <img src="${hidden ? BACK_M : monImg(u.id)}" alt="${esc(M(u).name)}">
-        ${hidden ? '' : tokensHtml(u)}${badge}
-        ${hidden ? '' : (() => { const hl = hpLine(u); return `<div class="ov"><div class="hpbar${hl.cls}" style="--fxd:-${hl.el}ms"><button data-adj="hp-" title="−1 ❤">−</button><span>❤ ${u.hp}/${u.maxHp}</span><button data-adj="hp+" title="+1 ❤">+</button></div>${hl.html}</div>`; })()}
+      inner = hidden ? `<div class="unit hidden" data-view="${o}:${i}"><img class="cardback" src="${BACK_M}" alt="thẻ úp"></div>` :
+        `<div class="unit ${o} ${u.st.stun ? 'stunned' : ''} ${u.acted ? 'acted' : ''}" ${drag} data-view="${o}:${i}" style="--el:${COL[m.element]}">
+        <span class="base"></span><img class="art" src="${artImg(u.id)}" alt="${esc(m.name)}" draggable="false">
+        <span class="uname"><img src="${elIcon(m.element)}" alt="">${esc(m.name)}</span>
+        ${isTaunt(u) ? '<span class="kwt" title="Khiêu khích">🛡</span>' : ''}
+        ${tokensHtml(u)}${badge}
+        ${(() => { const hl = hpLine(u); return `<div class="ov"><div class="hpbar${hl.cls}" style="--fxd:-${hl.el}ms"><button data-adj="hp-" title="−1 ❤">−</button><span>❤ ${u.hp}/${u.maxHp}</span><button data-adj="hp+" title="+1 ❤">+</button></div>${hl.html}</div>`; })()}
         ${tauntUp.has(i) ? '<span class="tauntlab">🛡 Khiêu khích</span>' : ''}${covered.has(i) ? '<span class="covlab">được che</span>' : ''}
       </div>`;
     } else if (u && u.kind === 'bld') {
@@ -871,18 +940,18 @@ function renderGrid(o) {
       const ctl = b.kind === 'house'
         ? (u.counter > 0 ? `<button data-adj="cnt-">−</button><span title="xí ngầu trắng: số lần kích hoạt còn lại">🎲 ${u.counter}</span><button data-adj="cnt+">+</button>` : `<span>Làm cảnh</span>`)
         : b.trigger === 'use' ? `<button data-adj="use">▶ Dùng xe</button>` : `<span title="${esc(b.text_vn)}">🛡 Tự chặn đòn</span>`;
-      inner = `<div class="unit ${b.kind === 'house' && !u.counter ? 'deco' : ''}" ${drag} data-view="${o}:${i}"><img src="${bldImg(u.id)}" alt="${esc(b.name)}"><div class="bldctl">${ctl}</div></div>`;
-    } else inner = `<div class="empty-hint">${o === 'P' && (S.phase === 'place' || S.turn === 'P') ? ROW_VI[rowOf(i)] : ''}</div>`;
+      inner = `<div class="unit bld ${b.kind === 'house' && !u.counter ? 'deco' : ''}" ${drag} data-view="${o}:${i}"><span class="base"></span><img class="art" src="${bldArt(u.id)}" alt="${esc(b.name)}" draggable="false"><span class="uname">${b.kind === 'house' ? '🏠' : '🚌'} ${esc(b.name)}</span><div class="bldctl">${ctl}</div></div>`;
+    } else inner = (f && f.data && f.data.id ? `<div class="unit ghost"><img class="art" src="${artImg(f.data.id)}" alt=""></div>` : '') + `<div class="empty-hint">${o === 'P' && (S.phase === 'place' || S.turn === 'P') ? ROW_VI[rowOf(i)] : ''}</div>`;
     return `<div class="${cls.join(' ')}" data-o="${o}" data-i="${i}"${f ? ` style="--fxd:-${Math.round(f.el)}ms"` : ''}>${inner}</div>`;
   }).join('');
 }
 function renderTray(animDice) {
   const el = $('#tray');
   if (S.phase === 'place') {
-    el.innerHTML = `<span class="note">Kéo ${D.rules.team.on_field} quái từ <b>vách che</b> (bên phải) vào lưới của bạn. Hàng <b>Trước</b> gần đối thủ nhất. Hai bên lật thẻ cùng lúc.</span>
-      <button class="btn primary" data-act="ready">Sẵn sàng · Lật thẻ</button>`; return;
+    el.innerHTML = `<span class="note">Kéo ${D.rules.team.on_field} quái từ <b>vách che</b> vào nửa sân dưới.</span>
+      <button class="btn primary tall" data-act="ready">Sẵn sàng<br>Lật thẻ</button>`; return;
   }
-  if (S.over) { el.innerHTML = `<span class="note">Ván đã kết thúc.</span><button class="btn primary" data-act="newgame">Ván mới</button>`; return; }
+  if (S.over) { el.innerHTML = `<span class="note">Hết ván</span><button class="btn primary tall" data-act="newgame">Ván mới</button>`; return; }
   const o = S.turn, s = side(o);
   const fieldEls = new Set(monsOf(o).map(i => M(s.grid[i]).element));
   const dice = s.dice.map((d, k) => {
@@ -891,26 +960,26 @@ function renderTray(animDice) {
     const drag = o === 'P' && !d.used ? `draggable="true" data-drag='${JSON.stringify({ type: 'die', di: k })}'` : '';
     const anim = (animDice && d.anim !== false) ? ' rolling' : ''; d.anim = false;
     const tip = nomon ? 'không có quái cùng màu → +1 ✦ cuối lượt' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
-    return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}<img class="eic" src="${elIcon(d.el)}" alt="">${!d.used && o === 'P' && nomon ? '<span class="dtag">+✦</span>' : ''}</div>`;
+    return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}<img class="eic" src="${elIcon(d.el)}" alt="">${d.toE ? '<span class="dtag">✦</span>' : (!d.used && o === 'P' && nomon ? '<span class="dtag">+✦</span>' : '')}</div>`;
   }).join('');
-  if (o === 'B') { el.innerHTML = `<span class="note"><b>Máy</b> đang chơi…</span><div class="dice">${dice}</div>`; return; }
+  if (o === 'B') { el.innerHTML = `<span class="note"><b>Máy</b><br>đang chơi…</span><div class="dice">${dice}</div>`; return; }
   let acts = '';
   if (!s.rolled) {
     if (S.chooseColors) {
-      acts = `<span class="note">Lượt đầu: chọn <b>${S.chooseColors} màu</b>, không thảy lại.</span><div class="colorpick">${EL_ORDER.map(e => `<label><input type="checkbox" data-color="${e}" ${S.colorPick.includes(e) ? 'checked' : ''}><img src="${elIcon(e)}" alt="">${EL_VI[e]}</label>`).join('')}</div>`;
+      acts = `<span class="note">Lượt đầu: chọn <b>${S.chooseColors} màu</b></span><div class="colorpick">${EL_ORDER.map(e => `<label title="${EL_VI[e]}"><input type="checkbox" data-color="${e}" ${S.colorPick.includes(e) ? 'checked' : ''}><img src="${elIcon(e)}" alt="${EL_VI[e]}"></label>`).join('')}</div>`;
     }
-    acts += `<button class="btn primary" data-act="roll" ${S.busy ? 'disabled' : ''}>🎲 Thảy xí ngầu</button>`;
+    acts += `<button class="btn primary tall" data-act="roll" ${S.busy ? 'disabled' : ''}>🎲<br>Thảy</button>`;
   } else {
     const canRe = !s.rerolled && !s.noReroll;
-    acts = `<button class="btn" data-act="reroll" ${canRe && !S.busy ? '' : 'disabled'}>Thảy lại viên đã chọn${canRe ? ' (1 lần)' : ''}</button>`;
+    acts = `<button class="btn tall" data-act="reroll" ${canRe && !S.busy ? '' : 'disabled'} title="Chạm chọn các viên rồi bấm để thảy lại (1 lần mỗi lượt)">↻<br>Thảy lại</button>`;
   }
-  acts += `<button class="btn ghost" data-act="hint" ${S.busy ? 'disabled' : ''} title="Trợ lý gợi ý nước đi">💡 Gợi ý</button><button class="btn warn" data-act="endturn" ${S.busy ? 'disabled' : ''}>Kết thúc lượt</button>`;
+  acts += `<button class="btn ghost tall" data-act="hint" ${S.busy ? 'disabled' : ''} title="Trợ lý gợi ý nước đi">💡<br>Gợi ý</button><button class="btn warn tall" data-act="endturn" ${S.busy ? 'disabled' : ''}>Kết thúc<br>lượt</button>`;
   el.innerHTML = `<div class="dice">${dice}</div><div class="acts">${acts}</div>`;
 }
 function energyHtml(n) { return `<span class="energy" title="Năng lượng ${n}/3">${[0, 1, 2].map(k => `<img src="${TOK.energy}" class="${k < n ? 'on' : ''}" alt="">`).join('')}</span>`; }
 function renderInfo(o) {
   const s = side(o), sc = scoreOf(o);
-  const trophies = s.trophies.map(u => `<img src="${monImg(u.id)}" title="${esc(M(u).name)} · ${M(u).price}🍇" data-view="t:${u.uid}" alt="">`).join('') || '<span class="muted">—</span>';
+  const trophies = s.trophies.map(u => `<img class="artmini" src="${artImg(u.id)}" title="${esc(M(u).name)} · ${M(u).price}🍇" data-view="t:${u.uid}" alt="">`).join('') || '<span class="muted">—</span>';
   const res = o === 'B' ? s.reserve.map(() => `<img src="${BACK_M}" alt="dự bị">`).join('') || '<span class="muted">—</span>' : '';
   let energy = '';
   if (!T().noEnergy) {
@@ -933,7 +1002,7 @@ function energyActions() {
     { id: 'reroll', c: 1, t: 'Thảy lại 1 xí ngầu', ok: s.energy >= 1 && rolled && anyDie, why: !rolled ? 'Thảy xí ngầu trước' : '' },
     { id: 'shield', c: 2, t: '+2 Khiên cho 1 quái', ok: s.energy >= 2 && monsOf('P').length > 0 },
     { id: 'move', c: 2, t: 'Dời 1 quái sang ô trống', tag: 'Chuẩn', ok: t.energyActs && s.energy >= 2 && monsOf('P').length > 0, why: t.energyActs ? '' : `Tầng ${t.name} chưa dùng` },
-    { id: 'recolor', c: 3, t: 'Đổi màu 1 xí ngầu', tag: 'Chuẩn', ok: t.energyActs && s.energy >= 3 && rolled && anyDie && !houseActive('P'), why: !t.energyActs ? `Tầng ${t.name} chưa dùng` : houseActive('P') ? 'Nhà còn xí ngầu: không đổi màu' : '' }
+    { id: 'recolor', c: 3, t: 'Đổi màu 1 xí ngầu', tag: 'Chuẩn', ok: t.energyActs && s.energy >= 3 && rolled && (anyDie || s.dice.some(d => d.toE)) && !houseActive('P'), why: !t.energyActs ? `Tầng ${t.name} chưa dùng` : houseActive('P') ? 'Nhà còn xí ngầu: không đổi màu' : '' }
   ];
   if (S.buildings) A.push({ id: 'draw', c: 2, t: 'Rút 1 Công trình', tag: 'Mở rộng', ok: s.energy >= 2 && S.bldDeck.length > 0 && !s.drew, why: s.drew ? 'Mỗi lượt rút 1 lá' : '' });
   return A;
@@ -943,7 +1012,7 @@ let diePick = null;
 function pickDie(label) {
   return new Promise(resolve => {
     diePick = resolve;
-    if (S.beamFromRect) setTimeout(() => startBeam(S.beamFromRect, 'nrg'), 0);
+    if (S.beamFromRect) setTimeout(() => startBeam(S.beamFromRect, S.beamKind || 'nrg'), 0);
     banner(`<span>${esc(label)}: chạm 1 xí ngầu</span><button class="btn sm warn" data-diepick="cancel">Hủy</button>`);
   });
 }
@@ -952,10 +1021,11 @@ async function energyAct(id, srcEl) {
   const s = side('P'); const a = energyActions().find(x => x.id === id);
   if (!a || !a.ok || S.busy || S.turn !== 'P') { toast(a && a.why ? a.why : 'Chưa dùng được lúc này.'); return; }
   if (id === 'draw') { await drawBuilding(); return; }
-  S.beamFromRect = srcEl ? srcEl.getBoundingClientRect() : null;
-  try { await energyActInner(id, s); } finally { S.beamFromRect = null; stopBeam(); render(); }
+  S.beamFromRect = srcEl ? srcEl.getBoundingClientRect() : null; S.beamKind = 'nrg';
+  try { await energyActInner(id, s); } finally { S.beamFromRect = null; S.beamKind = null; stopBeam(); render(); }
 }
 async function energyActInner(id, s) {
+  lockDead('P');
   if (id === 'reroll') {
     const sel = s.dice.filter(d => d.sel && !d.used);
     const d = sel.length === 1 ? sel[0] : await pickDie('1 ✦ · Thảy lại 1 xí ngầu');
@@ -975,7 +1045,7 @@ async function energyActInner(id, s) {
     S.busy = false;
   } else if (id === 'recolor') {
     const sel = s.dice.filter(d => d.sel && !d.used);
-    const d = sel.length === 1 ? sel[0] : await pickDie('3 ✦ · Đổi màu 1 xí ngầu');
+    S.diePickToE = true; const d = sel.length === 1 ? sel[0] : await pickDie('3 ✦ · Đổi màu 1 xí ngầu'); S.diePickToE = false;
     if (d) {
       const el = await new Promise(res => { diePick = res; banner(`<span>Đổi viên ${EL_VI[d.el]} ${d.face} thành:</span>${EL_ORDER.filter(e => e !== d.el).map(e => `<button class="btn sm" data-recolor="${e}"><img src="${elIcon(e)}" style="width:16px;vertical-align:-3px" alt=""> ${EL_VI[e]}</button>`).join('')}<button class="btn sm warn" data-diepick="cancel">Hủy</button>`); });
       if (el) recolorSelected(el, d);
@@ -1000,6 +1070,7 @@ function deckPopover() {
 async function drawBuilding() {
   const s = side('P'); const pop = document.getElementById('deckpop'); if (pop) pop.remove();
   const a = energyActions().find(x => x.id === 'draw'); if (!a || !a.ok || S.busy || S.turn !== 'P') { toast(a && a.why ? a.why : 'Chưa rút được lúc này.'); return; }
+  lockDead('P');
   S.busy = true;
   const did = S.bldDeck.pop(); spend('P', 2, `rút Công trình <b>${esc(BLD[did].name)}</b>`); s.drew = true;
   render();
@@ -1031,7 +1102,7 @@ function playerHint() {
   if (canSummon) { const r = botPickField(s.reserve, 1)[0]; tips.push(`✨ Sân còn chỗ: gọi dự bị (vd. <b>${esc(M(r).name)}</b>) <u>trước</u> khi gán xí ngầu.`); }
   if (!s.rolled) tips.push('🎲 Bấm <b>Thảy xí ngầu</b>.');
   else {
-    const plan = planBot(s.dice, 'P');
+    const plan = planBot(s.dice, 'P').sort((a, b) => (M(a.u).role_ai !== 'Support') - (M(b.u).role_ai !== 'Support'));
     if (plan.length) tips.push('Gán: ' + plan.map(p => `${EL_VI[p.die.el]} ${p.die.face} → <b>${esc(M(p.u).name)}</b> (${esc(p.skill.name)}${p.skill.tier === 'U' ? ' ★' : ''})`).join(' · ') + '. Nên làm kỹ năng Hỗ trợ trước.');
     const fieldEls = new Set(monsOf('P').map(i => M(s.grid[i]).element));
     const used = new Set(plan.map(p => p.die));
@@ -1111,7 +1182,7 @@ function bindUI() {
     const vadj = t.closest('[data-vadj]'); if (vadj) { const v = findView(viewSel); if (v && v.o) adjust(v.o, v.i, vadj.dataset.vadj); return; }
     const en = t.closest('[data-energy]'); if (en) { const s = side('P'); s.energy = Math.max(0, Math.min(3, s.energy + (en.dataset.energy === '+' ? 1 : -1))); render(); return; }
     const dieEl = t.closest('[data-die]');
-    if (dieEl && S && S.turn === 'P' && diePick) { const d = side('P').dice[+dieEl.dataset.die]; if (d && !d.used) endDiePick(d); return; }
+    if (dieEl && S && S.turn === 'P' && diePick) { const d = side('P').dice[+dieEl.dataset.die]; if (d && (!d.used || (d.toE && S.diePickToE))) endDiePick(d); return; }
     if (dieEl && S && S.turn === 'P') { const d = side('P').dice[+dieEl.dataset.die]; if (d && !d.used) { d.sel = !d.sel; picked = d.sel ? { type: 'die', di: +dieEl.dataset.die } : null; render(); } return; }
     const cell = t.closest('.cell');
     if (cell && S) {

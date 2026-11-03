@@ -89,35 +89,26 @@ Mỗi kỹ năng trong JSON là một danh sách hiệu ứng, ví dụ:
 
 ---
 
-## 3. Bố cục giao diện: vì sao có thứ "chạy" và thứ "đứng im"
-
-Trang được chia bằng **CSS Grid** thành 4 cột có độ rộng cố định:
+## 3. Bố cục giao diện: 6 cột cố định (v7.3)
 
 ```
-┌──────────┬──────────┬────────────────────────┬────────────┐
-│ 250px    │ 200px    │ phần còn lại (1fr)     │ 300px      │
-│ Máy      │ Thứ tự   │ Lưới Máy               │ Bạn · ✦    │
-│ Nhật ký  │ lượt     │ Khay xí ngầu           │ Vách che   │
-│          │ Khắc hệ  │ Lưới Bạn               │ Xem thẻ    │
-└──────────┴──────────┴────────────────────────┴────────────┘
-   .layout { grid-template-columns: 250px 200px minmax(0,1fr) 300px }
+┌─────────┬──────────┬────┬──────────────┬──────────┬────────────┐
+│ Nhật ký │ Máy      │ 🎲 │  SÂN 3 × 6   │ Xem thẻ  │ Bạn · ✦ ·  │
+│         │ Thứ tự   │ 🎲 │  (Máy trên,  │ (thẻ lớn │ chồng Công │
+│         │ lượt     │ 🎲 │   Bạn dưới)  │ + chỉnh  │ trình      │
+│         │          │ nút│              │  ❤/Khiên)│ Vách che   │
+│         │          │    │              │          │ Khắc hệ    │
+└─────────┴──────────┴────┴──────────────┴──────────┴────────────┘
+ 190px      205px     76px  3 × --cell    co giãn     275px
 ```
 
-**Lỗi bạn gặp trước đây:** bàn thứ tự lượt nằm *chung một hộp* với lưới và khay xí ngầu, và hộp đó được căn giữa.
-Khay xí ngầu đổi độ rộng (5 viên ↔ 3 viên, có/không có nút) thì cả hộp rộng ra/hẹp lại, căn giữa lại từ đầu,
-nên bàn thứ tự lượt bị đẩy qua lại.
-
-**Cách sửa (nguyên tắc chung):**
-1. Thứ cần **đứng im** → cho vào **cột riêng có độ rộng cố định** (giống Nhật ký). Bây giờ bàn thứ tự lượt là cột 2.
-2. Thứ có nội dung **thay đổi** (khay xí ngầu) → đặt **độ rộng cố định** (`width: min(100%, 600px)`),
-   để nội dung bên trong xuống dòng thay vì làm khung phình ra.
-3. Hiệu ứng "nổi lên" dùng `transform: scale(...)`: không chiếm thêm chỗ nên không đẩy hàng xóm.
-   Tránh đổi `width`, `margin`, `padding` khi làm hiệu ứng.
-
-Đã kiểm tra: ở 1280×720, 1440×900 và 1920×1080, bàn thứ tự lượt nằm đúng một chỗ trong mọi bước
-(đặt quân, chọn màu, đã thảy, lượt Máy).
-
----
+- Trên sân chỉ hiện **ảnh quái gốc** (`assets/art/monsters/`): nhẹ mắt, dễ nhận ra. Chi tiết thẻ đọc ở cột "Xem thẻ".
+  Quái của Máy quay mặt sang trái, có bóng đỏ; quái của Bạn có bóng xanh.
+- Ô sân là hình vuông, cạnh `--cell` = (chiều cao màn hình − thanh trên − lề) / 6.
+- **Vì sao không có gì "chạy":** mỗi cột có độ rộng riêng, không cột nào phụ thuộc nội dung cột khác.
+  Thứ có nội dung thay đổi (xí ngầu, nút) nằm trong cột cố định của nó và xuống dòng bên trong.
+- Hiệu ứng "nổi lên" chỉ dùng `transform: scale(...)` / `translate(...)`, không đổi kích thước, nên không đẩy hàng xóm.
+- Dưới 1100px (điện thoại) các cột xếp chồng: sân → xí ngầu → nhật ký → Máy → thứ tự lượt → xem thẻ → Bạn.
 
 ## 4. Mẹo tối ưu giao diện card game
 
@@ -184,7 +175,10 @@ Mỗi lần vẽ, ô tự đọc `FX`, gắn lớp `fx-hit` và đặt `--fxd` =
 | `fx-heal` | hồi ❤ / +Khiên | ánh xanh lá |
 | `fx-aim` | Máy chuẩn bị đánh ô này | viền đỏ sáng lên ~0,5 giây |
 | `taunt-up` / `covered` | bạn nhắm đòn 1 mục tiêu | quái Khiêu khích to ra + nhãn, quái được che nhỏ lại; rê vào quái được che thì quái Khiêu khích "giật" về |
-| dải sáng `#beam` | chọn mục tiêu cho ✦ / kỹ năng | đường cong "thở" từ nút ✦ (tím) hoặc quái ra đòn (đỏ) tới con trỏ, bắt dính vào ô hợp lệ |
+| dải sáng `#beam` | chọn mục tiêu cho ✦ | đường trắng liền "thở" từ nút ✦ tới con trỏ; đầu là vòng tròn trắng nét đứt xoay, bắt dính vào ô hợp lệ |
+| mũi tên vàng `.beam.aim` | chọn mục tiêu cho kỹ năng | mũi tên vàng viền nâu (kiểu nhắm mục tiêu) từ quái đang ra đòn |
+| `fx-ko` | quái bị hạ | ảnh quái xám đi, nghiêng và rơi mờ dần |
+| `acting` | quái đang ra đòn | ảnh quái nhún lên xuống |
 | `.flycard` | rút Công trình | thẻ bay ra giữa màn hình, lật mặt, thu nhỏ bay về khu dự bị |
 
 Thêm hiệu ứng mới = thêm 1 lớp CSS + 1 `@keyframes` dùng `var(--fxd)` làm delay, rồi gọi `fx(o, i, 'tên-lớp', ms)`.
@@ -207,3 +201,25 @@ Một yêu cầu tốt có đủ **5 ý: Khi nào · Đối tượng · Trông t
 
 Mẹo: gửi kèm **ảnh chụp / GIF tham khảo** từ game khác, nói rõ "giống chỗ nào" (nhịp, màu, cảm giác),
 và nói điều **không** muốn (ví dụ "không lóe trắng cả màn hình").
+
+## 9. Kiểm tra luật tự động (tests/rules.html)
+
+Mở `tests/rules.html` (trên máy: `http://localhost:8000/tests/rules.html`, trên GitHub Pages: `…/Karian-Summoner/tests/rules.html`).
+Trang tự chạy **29 ca kiểm** chuyển từ `Engine v6.5/tests/test_rules.py` (Karian-Library) và hiện ✅ / ❌ cho từng luật:
+lượt 5 bước, gọi dự bị, gán xí ngầu, ✦ trần 3, khắc hệ, Cận chiến/Tầm xa, Khiêu khích/Xuyên, diện rộng, 4 trạng thái,
+điểm & hòa, Draft A, lượt đầu, Ván 0, Công trình & Xe, Charflutter hồi sinh, Ngưỡng ❤, và đủ ảnh cho mọi thẻ.
+
+**Quy tắc:** sửa code xong thì mở trang này; còn ❌ là chưa được push. Thêm luật mới thì thêm 1 ca `test('tên', 'luật', async () => { … })`
+vào `tests/rules.test.js`.
+
+## 10. Đồng bộ với Karian-Library
+
+| Thư viện | Trong game |
+|---|---|
+| `Engine v6.5/karian_data.json` | `data/karian_data.json` (hiện trùng khớp 100%) |
+| `Prototype v6.5-P/Karian_Summoner_Cards_v6.5-P.html` | `assets/cards/**` (cắt bằng `tools/extract_cards.js`) |
+| `Monster system/<hệ>/<Tên>.png` | `assets/art/monsters/<Tên>.webp` (480px) |
+| `Decoration/<nhóm>/<Tên>.png` | `assets/art/buildings/<Tên>.webp` (360px, cắt viền) |
+| `Icon/Zapup_Victory_2.png`, `Mudrump_Defeat.png`, `Battle.png` | `assets/ui/victory.webp`, `defeat.webp`, `battle.webp` |
+| `Engine v6.5/karian/sim64.py` (AI) | `botTurn`, `planBot`, `botSummon`, `partsValue` trong `script.js` |
+| `Engine v6.5/tests/test_rules.py` | `tests/rules.test.js` |

@@ -21,51 +21,47 @@
 </header>
 
 <main class="layout">
-  <!-- Cột trái: Máy + nhật ký -->
-  <aside class="panel left">
+  <!-- Cột 1: nhật ký (cao hết màn hình) -->
+  <aside class="col col-log">
+    <section class="logbox"><h3>Nhật ký</h3><ol id="log"></ol></section>
+  </aside>
+
+  <!-- Cột 2: Máy + bàn thứ tự lượt -->
+  <aside class="col col-mid">
     <section class="side-info" id="infoB"></section>
-    <section class="logbox">
-      <h3>Nhật ký</h3>
-      <ol id="log"></ol>
-    </section>
-  </aside>
-
-  <!-- Cột 2: bàn thứ tự lượt + vòng khắc hệ (cột riêng, không phụ thuộc bàn chơi) -->
-  <aside class="sidecol">
     <section class="steps" id="steps" aria-label="Thứ tự lượt chơi"></section>
-    <section class="wheel" id="wheel" title="Vòng khắc hệ: A → B nghĩa là A khắc B (+1 sát thương), bị khắc −1 (tối thiểu 1)"></section>
   </aside>
 
-  <!-- Giữa: hai lưới 3x3 đối diện + khay xí ngầu -->
-  <section class="table" id="table">
-    <div class="boards">
-    <div class="boardwrap enemy">
-      <div class="boardlabel"><b>Máy</b><span class="rows"><i>Sau</i><i>Giữa</i><i>Trước</i></span></div>
-      <div class="grid" id="gridB"></div>
-    </div>
-    <div class="tray" id="tray"></div>
-    <div class="boardwrap me">
-      <div class="boardlabel"><b>Bạn</b><span class="rows"><i>Trước</i><i>Giữa</i><i>Sau</i></span></div>
-      <div class="grid" id="gridP"></div>
-    </div>
-    </div>
+  <!-- Cột 3: khay xí ngầu (dọc) -->
+  <section class="tray" id="tray"></section>
+
+  <!-- Cột 4: sân đấu — 1 sân liền, Máy ở trên, Bạn ở dưới -->
+  <section class="field" id="field">
+    <span class="ftag ftagB">🤖 Máy</span>
+    <div class="grid gridB" id="gridB"></div>
+    <div class="midline"></div>
+    <div class="grid gridP" id="gridP"></div>
+    <span class="ftag ftagP">Bạn</span>
   </section>
 
-  <!-- Cột phải: bạn, tay (vách che), xem thẻ -->
-  <aside class="panel right">
+  <!-- Cột 5: xem thẻ lớn -->
+  <section class="viewer" id="viewer"><p class="muted">Rê chuột / chạm vào một quái để xem thẻ.</p></section>
+
+  <!-- Cột 6: Bạn (năng lượng, chồng Công trình), vách che, vòng khắc hệ -->
+  <aside class="col col-right">
     <section class="side-info" id="infoP"></section>
     <section class="hand">
-      <h3>Vách che · Dự bị <small>(kéo vào lưới)</small></h3>
+      <h3>Vách che · Dự bị <small>(kéo vào sân)</small></h3>
       <div class="handcards" id="hand"></div>
       <div id="bldArea"></div>
     </section>
-    <section class="viewer" id="viewer"><p class="muted">Rê chuột / chạm vào một thẻ để xem lớn.</p></section>
+    <section class="wheel" id="wheel" title="Vòng khắc hệ: A → B nghĩa là A khắc B (+1 sát thương), bị khắc −1 (tối thiểu 1)"></section>
   </aside>
 </main>
 
 
 <!-- dải sáng khi chọn mục tiêu (năng lượng / kỹ năng) -->
-<svg class="beam" id="beam" aria-hidden="true"><defs><linearGradient id="beamg" x1="0" x2="1"><stop offset="0" stop-color="#b48cff"/><stop offset="1" stop-color="#ffe08a"/></linearGradient></defs><path class="glow"/><path class="core"/><circle r="9"/></svg>
+<svg class="beam" id="beam" aria-hidden="true"><path class="glow"/><path class="edge"/><path class="core"/><polygon class="head" points="0,0 0,0 0,0"/><circle class="ring" r="11"/></svg>
 <div class="banner" id="banner" hidden></div>
 <div class="toast" id="toast" hidden></div>
 <div class="modal" id="modal" hidden><div class="modal-card" id="modalCard"></div></div>
