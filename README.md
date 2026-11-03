@@ -13,6 +13,8 @@ Web app tĩnh (HTML/CSS/JS thuần, không cần build) để chơi thử **Kari
 
 ## Cấu trúc
 
+Giải thích kiến trúc cho người mới: [docs/KIEN-TRUC.md](docs/KIEN-TRUC.md).
+
 ```
 index.html  style.css  script.js     # core
 data/karian_data.json                # luật + 41 quái + 16 Công trình/Xe + bộ khởi động

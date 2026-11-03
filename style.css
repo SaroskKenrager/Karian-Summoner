@@ -36,7 +36,7 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
 .btn.sm{padding:2px 8px;font-size:12px;border-radius:9px}
 
 /* ---------- layout ---------- */
-.layout{display:grid;grid-template-columns:250px minmax(0,1fr) 300px;gap:10px;padding:10px;height:calc(100vh - var(--top))}
+.layout{display:grid;grid-template-columns:250px 200px minmax(0,1fr) 300px;gap:10px;padding:10px;height:calc(100vh - var(--top))}
 .panel{display:flex;flex-direction:column;gap:10px;min-height:0}
 .panel>section{background:rgb(255 255 255/.93);border:var(--bd);border-radius:16px;padding:10px;box-shadow:0 3px 0 var(--ink)}
 .logbox{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -61,10 +61,10 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
 
 /* ---------- table ---------- */
 .table{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:14px;min-height:0;min-width:0}
-.boards{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:0;min-width:0}
+.boards{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:0;min-width:0}
 
 /* ---------- bàn người chơi: thứ tự lượt ---------- */
-.sidecol{flex:none;width:190px;display:flex;flex-direction:column;gap:8px;align-self:center}
+.sidecol{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
 .steps{width:100%;display:flex;flex-direction:column;gap:6px;background:rgb(255 255 255/.93);border:var(--bd);border-radius:16px;padding:8px;box-shadow:0 3px 0 var(--ink)}
 .steps .whoturn{font-family:var(--display);font-size:16px;text-align:center;border-radius:10px;padding:2px 0;background:var(--cream)}
 .steps .whoturn.P{background:#d3f3d6}.steps .whoturn.B{background:#ffd9d4}
@@ -143,7 +143,7 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
 .empty-hint{color:#fff;font-size:11px;text-shadow:0 1px 2px var(--ink);text-align:center;padding:4px;opacity:.85}
 
 /* ---------- dice tray ---------- */
-.tray{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;background:rgb(255 255 255/.93);border:var(--bd);border-radius:16px;padding:6px 12px;box-shadow:0 3px 0 var(--ink);min-height:62px;max-width:100%}
+.tray{flex:none;width:min(100%, 600px);display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;background:rgb(255 255 255/.93);border:var(--bd);border-radius:16px;padding:6px 12px;box-shadow:0 3px 0 var(--ink);min-height:62px;max-width:100%}
 .dice{display:flex;gap:6px}
 .die{width:42px;height:42px;flex:none;border-radius:11px;border:3px solid var(--ink);display:grid;place-items:center;position:relative;cursor:grab;box-shadow:0 3px 0 var(--ink);user-select:none;transition:transform .15s}
 .die svg{width:100%;height:100%}
@@ -214,6 +214,6 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
   .layout{padding:6px;gap:8px}
   .tray{padding:6px}
   .panel.left .logbox{max-height:240px}
-  .sidecol{width:100%}
+  .sidecol{order:0;overflow:visible}
   .wheel{width:170px;margin:0 auto}
 }
