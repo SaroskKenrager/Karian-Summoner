@@ -223,3 +223,14 @@ vào `tests/rules.test.js`.
 | `Icon/Zapup_Victory_2.png`, `Mudrump_Defeat.png`, `Battle.png` | `assets/ui/victory.webp`, `defeat.webp`, `battle.webp` |
 | `Engine v6.5/karian/sim64.py` (AI) | `botTurn`, `planBot`, `botSummon`, `partsValue` trong `script.js` |
 | `Engine v6.5/tests/test_rules.py` | `tests/rules.test.js` |
+
+## 11. Đổi số phiên bản mỗi lần cập nhật (tránh lỗi "nửa cũ nửa mới")
+
+Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `style.css` / `script.js` trong bộ nhớ đệm.
+Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
+
+Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
+- `index.html`: `style.css?v=7.3.1` và `script.js?v=7.3.1`
+- `script.js`: `const APP_VER = '7.3.1';` (dùng cho `data/karian_data.json`)
+
+Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.

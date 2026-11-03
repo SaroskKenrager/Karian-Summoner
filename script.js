@@ -4,6 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
+const APP_VER = '7.3.1';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -1384,7 +1385,7 @@ function drawWheel() {
 async function boot() {
   drawWheel(); bindUI(); bindDnD();
   try {
-    const r = await fetch('data/karian_data.json'); if (!r.ok) throw new Error(r.status);
+    const r = await fetch('data/karian_data.json?v=' + APP_VER, { cache: 'no-cache' }); if (!r.ok) throw new Error(r.status);
     D = await r.json();
   } catch (err) {
     openModal(`<h2>Không tải được dữ liệu</h2><p>Không đọc được <code>data/karian_data.json</code> (${esc(err.message)}).</p><p>Trình duyệt chặn đọc file khi mở trực tiếp <code>index.html</code>. Hãy chạy một server tĩnh trong thư mục dự án, ví dụ:</p><pre>python3 -m http.server 8000</pre><p>rồi mở <code>http://localhost:8000</code> — hoặc dùng bản GitHub Pages.</p>`);

@@ -283,7 +283,7 @@ body.scene-lose .layout{filter:grayscale(.55) brightness(.92)}
    [Nhật ký] [Máy + thứ tự lượt] [xí ngầu dọc] [SÂN 3×6] [xem thẻ] [Bạn + vách che + khắc hệ]
    ===================================================================== */
 :root{--cell:clamp(62px, calc((100vh - var(--top) - 76px) / 6), 150px)}
-.layout{display:grid;grid-template-columns:190px 205px 76px auto minmax(190px,1fr) 275px;gap:10px;padding:10px;height:calc(100vh - var(--top))}
+.layout{display:grid;grid-template-columns:190px 205px 76px auto minmax(190px,400px) 275px;justify-content:center;gap:10px;padding:10px;height:calc(100vh - var(--top))}
 .col{display:flex;flex-direction:column;gap:10px;min-height:0;min-width:0}
 .col>section,.viewer,.tray{background:rgb(255 255 255/.93);border:var(--bd);border-radius:16px;padding:10px;box-shadow:0 3px 0 var(--ink)}
 .col-log .logbox{flex:1}
