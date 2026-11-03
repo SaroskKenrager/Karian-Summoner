@@ -76,9 +76,31 @@ function log(msg, o, cls) {
 let toastT = 0;
 function toast(msg) { const t = $('#toast'); t.innerHTML = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2600); }
 function banner(html) { const b = $('#banner'); if (!html) { b.hidden = true; b.innerHTML = ''; return; } b.innerHTML = html; b.hidden = false; }
-function flash(o, i, heal) {
-  const el = document.querySelector(`.cell[data-o="${o}"][data-i="${i}"]`); if (!el) return;
-  const c = heal ? 'flash-heal' : 'flash'; el.classList.remove(c); void el.offsetWidth; el.classList.add(c);
+/* ================= hiệu ứng (FX) =================
+ * Bàn được vẽ lại (render) rất thường xuyên, nên hiệu ứng không gắn thẳng vào DOM mà ghi vào FX:
+ * mỗi lần vẽ, ô đọc FX và đặt animation-delay âm = thời gian đã trôi → hiệu ứng chạy tiếp, không bị giật lại từ đầu.
+ */
+const FX = {};
+function fx(o, i, cls, dur = 650) {
+  FX[`${o}:${i}`] = { cls, t: performance.now(), dur };
+  const el = document.querySelector(`.cell[data-o="${o}"][data-i="${i}"]`);
+  if (el) { el.classList.remove('fx-hit', 'fx-heal', 'fx-aim'); el.style.setProperty('--fxd', '0ms'); void el.offsetWidth; el.classList.add(cls); }
+}
+function fxOf(o, i) {
+  const k = `${o}:${i}`, f = FX[k]; if (!f) return null;
+  const el = performance.now() - f.t; if (el > f.dur) { delete FX[k]; return null; }
+  return { cls: f.cls, el };
+}
+function flash(o, i, heal) { fx(o, i, heal ? 'fx-heal' : 'fx-hit', heal ? 700 : 650); }
+/** Thanh máu: nhớ ❤ đã hiển thị để vẽ phần "máu vừa mất" tụt dần */
+const HPV = {};
+function hpLine(u) {
+  const now = performance.now(); let h = HPV[u.uid];
+  if (!h) h = HPV[u.uid] = { hp: u.hp, from: u.hp, t: -1e9 };
+  if (h.hp !== u.hp) { h.from = h.hp; h.hp = u.hp; h.t = now; }
+  const el = now - h.t, drop = h.from > u.hp && el < 1200;
+  const pct = v => Math.max(0, Math.min(100, v / u.maxHp * 100)).toFixed(1) + '%';
+  return { el: Math.round(el), cls: drop ? ' drain' : '', html: `<div class="hpline${drop ? ' drain' : ''}" style="--from:${pct(h.from)};--to:${pct(u.hp)};--fxd:-${Math.round(el)}ms"><b class="lag"></b><i style="width:${pct(u.hp)}"></i></div>` };
 }
 const uName = u => `<b>${esc(M(u).name)}</b>`;
 /** Nội tại / Ngưỡng / Di nguyện / Nhà kích hoạt: ghi nhật ký nổi bật + toast */
@@ -248,6 +270,7 @@ async function runEffects(o, src, si, effects, chooser, label, fromDead) {
       if (op.auto) targets = op.auto;
       else if (!op.opts.length) targets = [];
       else { targets = await chooser({ o, side: enemy ? fo : o, src, effect: e, opts: op.opts, pick: op.pick, center: op.center, label, ctx }); if (!targets || !targets.length) ctx.skipped = true; }
+      if (o === 'B' && enemy && targets && targets.length && S.turn === 'B') { targets.forEach(i => fx(fo, i, 'fx-aim', 520)); await sleep(480); }
       ctx.tg[e.t] = targets;
     }
     targets = (targets || []).filter(i => isMon(side(enemy ? fo : o).grid[i]) && !(enemy && ctx.blocked.has(i)));
@@ -341,17 +364,46 @@ function aiPickEnemy(o, att, cands, v, ctx) {
 /* ================= người chơi chọn mục tiêu ================= */
 let pendingPick = null;
 function playerChooser(req) {
-  if (req.opts.length === 1 && req.pick === 1) return Promise.resolve(req.opts[0]);
+  // chỉ còn 1 lựa chọn → tự chọn; trừ khi đó là do Khiêu khích kéo đòn (để bạn thấy quái nào đang che)
+  const g = side(req.side).grid;
+  const tauntForced = req.side !== req.o && SINGLE_CODES.includes(req.effect.t) && req.opts.some(op => isMon(g[op[0]]) && isTaunt(g[op[0]]) && adjIdx(op[0]).some(j => isMon(g[j]) && !req.opts.some(x => x[0] === j)));
+  if (req.opts.length === 1 && req.pick === 1 && !tauntForced) return Promise.resolve(req.opts[0]);
   return new Promise(resolve => {
     const chosen = [];
     pendingPick = { req, chosen, resolve };
+    if (!beam) { const a = S.acting && document.querySelector(`.cell[data-o="${S.acting.o}"][data-i="${S.acting.i}"]`); if (a) S.beamFromRect = a.getBoundingClientRect(); }
+    setTimeout(() => { if (pendingPick && pendingPick.req === req && S.beamFromRect) startBeam(S.beamFromRect, req.effect.k === 'd' || req.effect.k === 'st' || req.effect.k === 'loss' ? 'atk' : 'nrg'); }, 0);
     const eff = req.effect, kind = { d: `⚔ ${eff.v} sát thương`, h: `hồi ${eff.v} ❤`, s: `+${eff.v} Khiên`, st: `gây ${eff.v}`, bf: `${eff.v}` }[eff.k] || '';
     banner(`<span><b>${esc(req.label)}</b>: chọn ${req.pick > 1 ? req.pick + ' mục tiêu' : 'mục tiêu'} (${esc(eff.printed || '')}) · ${kind}</span>` +
       (req.pick > 1 ? `<button class="btn sm" data-pick="done">Xong</button>` : '') + `<button class="btn sm warn" data-pick="skip">Bỏ qua</button>`);
     render();
   });
 }
-function finishPick(res) { const p = pendingPick; pendingPick = null; banner(''); render(); p.resolve(res); }
+function finishPick(res) { const p = pendingPick; pendingPick = null; banner(''); stopBeam(); render(); p.resolve(res); }
+/* ---------- dải sáng: từ nút năng lượng / quái đang ra đòn tới con trỏ ---------- */
+let beam = null;
+function startBeam(from, kind) {
+  if (!from) return; stopBeam();
+  const r = from.getBoundingClientRect ? from.getBoundingClientRect() : from;
+  const svg = document.getElementById('beam');
+  beam = { x: r.left + r.width / 2, y: r.top + r.height / 2, kind };
+  svg.setAttribute('class', 'beam on ' + kind);
+  moveBeam(beam.x + 1, beam.y - 1);
+}
+function moveBeam(x, y) {
+  if (!beam) return;
+  const svg = document.getElementById('beam');
+  const t = document.elementFromPoint(x, y), hit = t && t.closest('.cell.target, .cell.ally-target, .die:not(.used)');
+  let ex = x, ey = y;
+  if (hit) { const r = hit.getBoundingClientRect(); ex = r.left + r.width / 2; ey = r.top + r.height / 2; }
+  const cx = (beam.x + ex) / 2, cy = Math.min(beam.y, ey) - Math.max(40, Math.abs(ex - beam.x) * 0.25);
+  const d = `M${beam.x},${beam.y} Q${cx},${cy} ${ex},${ey}`;
+  svg.querySelectorAll('path').forEach(p => p.setAttribute('d', d));
+  const c = svg.querySelector('circle'); c.setAttribute('cx', ex); c.setAttribute('cy', ey);
+  svg.classList.toggle('lock', !!hit);
+}
+function stopBeam() { beam = null; const svg = document.getElementById('beam'); if (svg) svg.setAttribute('class', 'beam'); }
+document.addEventListener('mousemove', e => { if (beam) moveBeam(e.clientX, e.clientY); });
 function onPickCell(o, i) {
   const p = pendingPick; if (!p) return false;
   if (o !== p.req.side) { toast('Chọn ô được viền sáng.'); return true; }
@@ -455,13 +507,19 @@ function gameOver(reason) {
   log(`🏁 Kết thúc (${reason}) — ${res}`, null, 't');
   saveStats(res, reason, p, b);
   render();
-  openModal(`<h2>${res}</h2><p>${esc(reason)}.</p>
+  const kind = p.total !== b.total ? (p.total > b.total ? 'win' : 'lose') : p.field !== b.field ? (p.field > b.field ? 'win' : 'lose') : 'draw';
+  showResultScene(kind);
+  openModal(`<div class="result ${kind}"><div class="burst">${kind === 'win' ? Array.from({ length: 24 }, (_, k) => `<i style="--k:${k};--x:${rnd(100)}%;--c:${Object.values(COL)[k % 5]}"></i>`).join('') : ''}</div>
+    <img class="rimg" src="${kind === 'lose' ? BACK_M : 'assets/icons/Fruit.webp'}" alt=""><h2>${kind === 'win' ? 'CHIẾN THẮNG!' : kind === 'lose' ? 'THẤT BẠI' : 'HÒA'}</h2><p class="rsub">${res}</p></div><p>${esc(reason)}.</p>
     <table class="score"><tr><th></th><th>🍇 quái đã hạ</th><th>🍇 quái còn sống</th><th>Tổng</th><th>Quái trên sân</th></tr>
     <tr><td><b>Bạn</b></td><td>${p.ko}</td><td>${p.alive}</td><td><b>${p.total}</b></td><td>${p.field}</td></tr>
     <tr><td><b>Máy</b></td><td>${b.ko}</td><td>${b.alive}</td><td><b>${b.total}</b></td><td>${b.field}</td></tr></table>
     <p class="muted">Thời gian ${fmtTime(Date.now() - S.startTime)} · ${S.turnCount} lượt · ✦ Bạn nhận ${S.stats.P.gained}/tiêu ${S.stats.P.spent} · Máy nhận ${S.stats.B.gained}/tiêu ${S.stats.B.spent} · Công trình đã dùng: ${S.stats.P.blds.map(esc).join(', ') || '—'}</p>
     <div class="foot"><button class="btn" data-act="dlstats">Tải số liệu các ván (JSON)</button><button class="btn" data-close>Xem bàn</button><button class="btn primary" data-act="newgame">Ván mới</button></div>`);
 }
+
+/** Màn hình kết quả: đổi lớp trên <body> để cả bàn chuyển tông (thắng: sáng, thua: xám) */
+function showResultScene(kind) { document.body.classList.remove('scene-win', 'scene-lose', 'scene-draw'); if (kind) document.body.classList.add('scene-' + kind); }
 
 /* ================= xí ngầu người chơi ================= */
 function prepPlayerDice() {
@@ -771,6 +829,11 @@ function renderGrid(o) {
   // Trợ lý: viên đang chọn / rê chuột → quái nào kích hoạt được, kỹ năng gì
   const sd = side('P').dice, dk = S.hoverDie != null ? S.hoverDie : (picked && picked.type === 'die' ? picked.di : null);
   const die = o === 'P' && S.turn === 'P' && dk != null && sd[dk] && !sd[dk].used ? sd[dk] : null;
+  // Khiêu khích: khi bạn đang nhắm đòn 1 mục tiêu, quái Khiêu khích nổi lên, đồng đội được che thu nhỏ lại
+  const tauntUp = new Set(), covered = new Set();
+  if (pp && pp.req.side === o && pp.req.o !== o && pp.req.pick === 1 && !pp.req.center && SINGLE_CODES.includes(pp.req.effect.t) && pp.req.effect.t !== 'anyE') {
+    g.forEach((x, i) => { if (isMon(x) && isTaunt(x) && hi.has(i)) adjIdx(i).forEach(j => { if (isMon(g[j]) && !hi.has(j)) { covered.add(j); tauntUp.add(i); } }); });
+  }
   el.innerHTML = order.map(i => {
     const u = g[i]; let inner = '';
     const cls = ['cell'];
@@ -778,6 +841,8 @@ function renderGrid(o) {
     if (pp && pp.chosen.includes(i) && pp.req.side === o) cls.push('picked');
     if (S.acting && S.acting.o === o && S.acting.i === i) cls.push('acting');
     if (picked && picked.type === 'cell' && o === 'P' && picked.i === i) cls.push('picked');
+    if (tauntUp.has(i)) cls.push('taunt-up'); if (covered.has(i)) cls.push('covered');
+    const f = fxOf(o, i); if (f) cls.push(f.cls);
     let badge = '';
     if (isMon(u) && die && M(u).element === die.el) {
       const f = !u.acted && !u.st.stun ? findSkill(u, die, sd) : null;
@@ -797,7 +862,8 @@ function renderGrid(o) {
       inner = `<div class="unit ${u.st.stun ? 'stunned' : ''}" ${drag} data-view="${o}:${i}">
         <img src="${hidden ? BACK_M : monImg(u.id)}" alt="${esc(M(u).name)}">
         ${hidden ? '' : tokensHtml(u)}${badge}
-        ${hidden ? '' : `<div class="ov"><div class="hpbar"><button data-adj="hp-" title="−1 ❤">−</button><span>❤ ${u.hp}/${u.maxHp}</span><button data-adj="hp+" title="+1 ❤">+</button></div><div class="hpline"><i style="width:${Math.max(0, u.hp / u.maxHp * 100)}%"></i></div></div>`}
+        ${hidden ? '' : (() => { const hl = hpLine(u); return `<div class="ov"><div class="hpbar${hl.cls}" style="--fxd:-${hl.el}ms"><button data-adj="hp-" title="−1 ❤">−</button><span>❤ ${u.hp}/${u.maxHp}</span><button data-adj="hp+" title="+1 ❤">+</button></div>${hl.html}</div>`; })()}
+        ${tauntUp.has(i) ? '<span class="tauntlab">🛡 Khiêu khích</span>' : ''}${covered.has(i) ? '<span class="covlab">được che</span>' : ''}
       </div>`;
     } else if (u && u.kind === 'bld') {
       const b = BLD[u.id];
@@ -807,7 +873,7 @@ function renderGrid(o) {
         : b.trigger === 'use' ? `<button data-adj="use">▶ Dùng xe</button>` : `<span title="${esc(b.text_vn)}">🛡 Tự chặn đòn</span>`;
       inner = `<div class="unit ${b.kind === 'house' && !u.counter ? 'deco' : ''}" ${drag} data-view="${o}:${i}"><img src="${bldImg(u.id)}" alt="${esc(b.name)}"><div class="bldctl">${ctl}</div></div>`;
     } else inner = `<div class="empty-hint">${o === 'P' && (S.phase === 'place' || S.turn === 'P') ? ROW_VI[rowOf(i)] : ''}</div>`;
-    return `<div class="${cls.join(' ')}" data-o="${o}" data-i="${i}">${inner}</div>`;
+    return `<div class="${cls.join(' ')}" data-o="${o}" data-i="${i}"${f ? ` style="--fxd:-${Math.round(f.el)}ms"` : ''}>${inner}</div>`;
   }).join('');
 }
 function renderTray(animDice) {
@@ -851,12 +917,12 @@ function renderInfo(o) {
     if (o === 'P') {
       const my = S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over;
       const acts = energyActions().map(a => `<button class="eact" data-eact="${a.id}" ${my && a.ok ? '' : 'disabled'} title="${esc(a.why || a.d)}"><b>${a.c}✦</b><span>${a.t}${a.tag ? ` <em>${a.tag}</em>` : ''}</span></button>`).join('');
-      energy = `<div class="ebox"><div class="ehead"><b>Năng lượng</b>${energyHtml(s.energy)}<span class="eadj"><button class="btn sm" data-energy="-" title="chỉnh tay">−</button><button class="btn sm" data-energy="+" title="chỉnh tay">+</button></span></div>
+      energy = `<div class="ebox" title="Viên không có quái cùng màu +1 ✦ · giữ tối đa 3"><div class="ehead"><b>Năng lượng</b>${energyHtml(s.energy)}<span class="eadj"><button class="btn sm" data-energy="-" title="chỉnh tay">−</button><button class="btn sm" data-energy="+" title="chỉnh tay">+</button></span></div>
         <small class="muted">Viên không có quái cùng màu +1 · giữ tối đa 3${houseActive('P') ? ' · 🏠 Nhà còn xí ngầu → cuối lượt chỉ giữ 2' : ''}</small><div class="eacts">${acts}</div></div>`;
     } else energy = `<div class="meters">${energyHtml(s.energy)}</div>`;
   }
   $('#info' + o).innerHTML = `<div class="who"><h3>${o === 'P' ? 'Bạn' : '🤖 Máy'}</h3><span class="pill">🍇 ${sc.total}</span></div>
-    ${energy}
+    ${o === 'P' && S.buildings ? `<div class="pwrap">${energy}<div class="bdeck" data-deck title="Chồng Công trình & Xe — bấm để rút (2 ✦)"><img src="${BACK_B}" alt="Chồng Công trình"><b>${S.bldDeck.length}</b><small>Công trình</small></div></div>` : energy}
     ${o === 'B' ? `<div class="lbl">Dự bị (úp) · ${s.reserve.length}</div><div class="mini-cards">${res}</div>` : ''}
     <div class="lbl">Chiến lợi phẩm (quái đã hạ) · ${sc.ko} 🍇</div><div class="mini-cards">${trophies}</div>`;
 }
@@ -877,13 +943,19 @@ let diePick = null;
 function pickDie(label) {
   return new Promise(resolve => {
     diePick = resolve;
+    if (S.beamFromRect) setTimeout(() => startBeam(S.beamFromRect, 'nrg'), 0);
     banner(`<span>${esc(label)}: chạm 1 xí ngầu</span><button class="btn sm warn" data-diepick="cancel">Hủy</button>`);
   });
 }
-function endDiePick(v) { const r = diePick; diePick = null; banner(''); if (r) r(v); }
-async function energyAct(id) {
+function endDiePick(v) { const r = diePick; diePick = null; banner(''); stopBeam(); if (r) r(v); }
+async function energyAct(id, srcEl) {
   const s = side('P'); const a = energyActions().find(x => x.id === id);
   if (!a || !a.ok || S.busy || S.turn !== 'P') { toast(a && a.why ? a.why : 'Chưa dùng được lúc này.'); return; }
+  if (id === 'draw') { await drawBuilding(); return; }
+  S.beamFromRect = srcEl ? srcEl.getBoundingClientRect() : null;
+  try { await energyActInner(id, s); } finally { S.beamFromRect = null; stopBeam(); render(); }
+}
+async function energyActInner(id, s) {
   if (id === 'reroll') {
     const sel = s.dice.filter(d => d.sel && !d.used);
     const d = sel.length === 1 ? sel[0] : await pickDie('1 ✦ · Thảy lại 1 xí ngầu');
@@ -908,11 +980,49 @@ async function energyAct(id) {
       const el = await new Promise(res => { diePick = res; banner(`<span>Đổi viên ${EL_VI[d.el]} ${d.face} thành:</span>${EL_ORDER.filter(e => e !== d.el).map(e => `<button class="btn sm" data-recolor="${e}"><img src="${elIcon(e)}" style="width:16px;vertical-align:-3px" alt=""> ${EL_VI[e]}</button>`).join('')}<button class="btn sm warn" data-diepick="cancel">Hủy</button>`); });
       if (el) recolorSelected(el, d);
     }
-  } else if (id === 'draw') {
-    const did = S.bldDeck.pop(); spend('P', 2, `rút Công trình <b>${esc(BLD[did].name)}</b> — kéo vào 1 ô trống`); s.drew = true;
-    s.bldHand.push({ kind: 'bld', uid: UID++, id: did, counter: BLD[did].activations, moved: false, st: {} });
   }
+}
+/* ---------- chồng Công trình: bấm mặt lưng → hỏi 2 ✦ → lật thẻ → thu nhỏ bay về khu dự bị ---------- */
+function deckPopover() {
+  const s = side('P'), a = energyActions().find(x => x.id === 'draw');
+  const deck = document.querySelector('[data-deck]'); if (!deck) return;
+  const old = document.getElementById('deckpop'); if (old) { old.remove(); return; }
+  const my = S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over;
+  const r = deck.getBoundingClientRect();
+  const pop = document.createElement('div'); pop.id = 'deckpop'; pop.className = 'glasspop';
+  pop.style.left = Math.max(8, r.left - 210) + 'px'; pop.style.top = (r.bottom + 8) + 'px';
+  const why = !my ? 'Chỉ rút trong lượt của bạn.' : a && !a.ok ? (a.why || (s.energy < 2 ? 'Chưa đủ 2 ✦.' : 'Hết thẻ.')) : '';
+  pop.innerHTML = `<b>Rút 1 Công trình</b><div class="cost"><img src="${TOK.energy}" alt=""><img src="${TOK.energy}" alt=""><span>2 năng lượng</span></div>
+    ${why ? `<small>${esc(why)}</small>` : '<small>Thẻ về khu dự bị, rồi kéo vào 1 ô trống.</small>'}
+    <div class="row"><button class="btn sm" data-deckpop="no">Hủy</button><button class="btn sm primary" data-deckpop="yes" ${why ? 'disabled' : ''}>Rút</button></div>`;
+  document.body.appendChild(pop);
+}
+async function drawBuilding() {
+  const s = side('P'); const pop = document.getElementById('deckpop'); if (pop) pop.remove();
+  const a = energyActions().find(x => x.id === 'draw'); if (!a || !a.ok || S.busy || S.turn !== 'P') { toast(a && a.why ? a.why : 'Chưa rút được lúc này.'); return; }
+  S.busy = true;
+  const did = S.bldDeck.pop(); spend('P', 2, `rút Công trình <b>${esc(BLD[did].name)}</b>`); s.drew = true;
   render();
+  const deck = document.querySelector('[data-deck]'), dst = document.getElementById('bldArea') || document.getElementById('hand');
+  if (deck && dst && document.body.animate) {
+    const r0 = deck.getBoundingClientRect(), r1 = dst.getBoundingClientRect();
+    const fly = document.createElement('div'); fly.className = 'flycard';
+    fly.innerHTML = `<div class="flip"><img class="face back" src="${BACK_B}" alt=""><img class="face front" src="${bldImg(did)}" alt=""></div>`;
+    Object.assign(fly.style, { left: r0.left + 'px', top: r0.top + 'px', width: r0.width + 'px', height: r0.width * 88 / 63 + 'px' });
+    document.body.appendChild(fly);
+    const cx = innerWidth / 2 - r0.left - r0.width / 2, cy = innerHeight / 2 - r0.top - r0.width * 44 / 63;
+    const big = Math.min(3.2, (innerHeight * 0.55) / (r0.width * 88 / 63));
+    await fly.animate([{ transform: 'translate(0,0) scale(1)' }, { transform: `translate(${cx}px,${cy}px) scale(${big})` }], { duration: 450, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'forwards' }).finished;
+    await fly.querySelector('.flip').animate([{ transform: 'rotateY(0deg)' }, { transform: 'rotateY(180deg)' }], { duration: 520, easing: 'ease-in-out', fill: 'forwards' }).finished;
+    await sleep(650);
+    const tx = r1.left + 30 - r0.left - r0.width / 2, ty = r1.top + r1.height - 40 - r0.top - r0.width * 44 / 63;
+    await fly.animate([{ transform: `translate(${cx}px,${cy}px) scale(${big})`, opacity: 1 }, { transform: `translate(${tx}px,${ty}px) scale(.7)`, opacity: .4 }], { duration: 520, easing: 'cubic-bezier(.5,0,.7,1)', fill: 'forwards' }).finished;
+    fly.remove();
+  }
+  s.bldHand.push({ kind: 'bld', uid: UID++, id: did, counter: BLD[did].activations, moved: false, st: {} });
+  S.busy = false; render();
+  const nc = document.querySelector('#bldArea .hcard:last-of-type'); if (nc) nc.classList.add('newcard');
+  log(`Thẻ <b>${esc(BLD[did].name)}</b> đã vào khu dự bị — kéo vào 1 ô trống`, 'P');
 }
 /** Trợ lý gợi ý */
 function playerHint() {
@@ -942,8 +1052,7 @@ function renderHand() {
     const deck = S.bldDeck.length;
     $('#bldArea').innerHTML = `<h3 style="margin-top:8px">Công trình & Xe <small>(mở rộng)</small></h3>
       <div class="handcards">${s.bldHand.map(b => `<div class="hcard" draggable="true" data-drag='${JSON.stringify({ type: 'bld', uid: b.uid })}' data-bldh="${b.uid}" data-view="b:${b.uid}"><img src="${bldImg(b.id)}" alt="${esc(BLD[b.id].name)}"></div>`).join('')}
-      <div class="hcard back" title="Chồng Công trình: ${deck} lá"><img src="${BACK_B}" alt=""></div></div>
-      <button class="btn sm" data-eact="draw" ${deck && s.energy >= 2 && !s.drew && S.turn === 'P' && S.phase === 'play' && !S.busy ? '' : 'disabled'}>Rút Công trình · 2 ✦</button>`;
+      ${s.bldHand.length ? '' : '<span class="muted">Bấm chồng thẻ cạnh bảng Năng lượng để rút.</span>'}</div>`;
   } else $('#bldArea').innerHTML = '';
 }
 function findView(key) {
@@ -991,7 +1100,10 @@ function bindUI() {
     if (t.closest('[data-close]')) { closeModal(); return; }
     const dp = t.closest('[data-diepick]'); if (dp) { endDiePick(null); return; }
     const rc = t.closest('[data-recolor]'); if (rc) { endDiePick(rc.dataset.recolor); return; }
-    const ea = t.closest('[data-eact]'); if (ea) { energyAct(ea.dataset.eact); return; }
+    const ea = t.closest('[data-eact]'); if (ea) { energyAct(ea.dataset.eact, ea); return; }
+    const dk = t.closest('[data-deck]'); if (dk) { deckPopover(); return; }
+    const dpp = t.closest('[data-deckpop]'); if (dpp) { if (dpp.dataset.deckpop === 'yes') drawBuilding(); else { const x = document.getElementById('deckpop'); if (x) x.remove(); } return; }
+    if (!t.closest('#deckpop')) { const x = document.getElementById('deckpop'); if (x) x.remove(); }
     const pk = t.closest('[data-pick]');
     if (pk && pendingPick) { if (pk.dataset.pick === 'skip') finishPick([]); else finishPick(pendingPick.chosen.slice()); return; }
     const act = t.closest('[data-act]'); if (act && act.tagName !== 'SELECT') { doAct(act.dataset.act); return; }
@@ -1028,6 +1140,9 @@ function bindUI() {
     if (!S) return;
     const de = e.target.closest('[data-die]'), hd = de ? +de.dataset.die : null;
     if (hd !== S.hoverDie && S.turn === 'P') { S.hoverDie = hd; renderGrid('P'); }
+    document.querySelectorAll('.cell.pulled').forEach(c => c.classList.remove('pulled'));
+    const cov = e.target.closest('.cell.covered');
+    if (cov) adjIdx(+cov.dataset.i).forEach(j => { const c = document.querySelector(`.cell.taunt-up[data-o="${cov.dataset.o}"][data-i="${j}"]`); if (c) c.classList.add('pulled'); });
     const v = e.target.closest('[data-view]'); if (!v || v.dataset.view === viewSel) return;
     viewSel = v.dataset.view; renderViewer();
   });
@@ -1152,7 +1267,7 @@ function newGame(st) {
   S = { tier, phase: 'place', round: 1, maxRounds: D.rules.modes['1v1'].rounds, turn: 'P', first: st.first === 'random' ? (Math.random() < 0.5 ? 'P' : 'B') : st.first,
     sides: { P: mkSide(pIds), B: mkSide(bIds) }, over: false, busy: false, firstTurn: true, step: 0, turnCount: 0, startTime: Date.now(), hoverDie: null,
     stats: { P: { gained: 0, spent: 0, blds: [] }, B: { gained: 0, spent: 0, blds: [] } }, teams: { P: pIds.slice(), B: bIds.slice() }, buildings: tier === 'standard' && st.buildings, bldDeck: shuffle(D.buildings.map(b => b.id)), chooseColors: 0, colorPick: [] };
-  viewSel = null; picked = null; pendingPick = null; diePick = null; banner('');
+  viewSel = null; picked = null; pendingPick = null; diePick = null; banner(''); showResultScene(null); stopBeam();
   $('#log').innerHTML = '';
   log(`Ván mới · tầng <b>${TIERS[tier].name}</b>. Máy dùng: <b>${esc(bName)}</b>.`, null, 't');
   // Máy đặt quân úp

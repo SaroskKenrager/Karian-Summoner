@@ -146,3 +146,64 @@ nên bàn thứ tự lượt bị đẩy qua lại.
 
 **Chạy thử trên máy:** mở terminal trong thư mục dự án → `python3 -m http.server 8000` → mở `http://localhost:8000`.
 Sửa file, lưu, nhấn F5 là thấy thay đổi.
+
+---
+
+## 6. Quy trình chuẩn khi thêm một loại đối tượng mới
+
+Ví dụ: màn hình thắng/thua, lá bài mới, token mới, hiệu ứng mới. Làm đúng **5 bước**, mỗi bước xong mới sang bước sau:
+
+| Bước | Câu hỏi | Ở đâu | Ví dụ: màn hình kết quả (v7.2) |
+|---|---|---|---|
+| ① Đặc tả | Nó là gì, khi nào xuất hiện, khi nào biến mất, người chơi bấm được gì? | Ghi 5–10 dòng vào ô góp ý / issue | Hiện khi hết 8 vòng hoặc 1 bên hết quái; 3 dạng thắng/thua/hòa; nút Ván mới / Xem bàn / Tải số liệu |
+| ② Dữ liệu | Nó cần biết những số liệu nào? Có đưa vào JSON được không? | `data/karian_data.json` hoặc `S` | Điểm, số quái trên sân, thời gian, ✦ (đã có trong `S.stats`) |
+| ③ Tài nguyên | Ảnh, icon, âm thanh? Đặt tên thế nào? | `assets/<loại>/<tên>.png` | Dùng lại `Fruit.webp`, mặt lưng thẻ |
+| ④ Thành phần | Một hàm vẽ riêng + một nhóm CSS riêng, có tiêu đề | `script.js` (khối riêng) + `style.css` (khối riêng) | `showResultScene(kind)` + `.result.win/.lose/.draw` |
+| ⑤ Kiểm tra | Chạy thử đủ các trường hợp, chụp màn hình | trình duyệt / script kiểm thử | Ép `gameOver()` với điểm thắng, thua, hòa |
+
+Quy ước đặt tên giúp code luôn "quy củ":
+- Lớp CSS của một thành phần bắt đầu bằng tên thành phần: `.result`, `.result h2`, `.result.win`.
+- Trạng thái dùng **lớp phụ** chứ không sửa style trực tiếp: `.win` / `.lose`, `.on` / `.done`, `.fx-hit`.
+- Mỗi màn hình hay hiệu ứng có **một hàm mở** (`showX`) và **một cách đóng** rõ ràng.
+- Không bao giờ lưu số liệu trong giao diện, chỉ trong `S` (xem mục 1).
+
+## 7. Hệ hiệu ứng (FX)
+
+Bàn chơi được vẽ lại rất nhiều lần mỗi giây khi có thao tác. Nếu gắn hiệu ứng thẳng vào ô, lần vẽ sau sẽ xóa mất.
+Vì vậy dùng một bảng ghi `FX`:
+
+```js
+fx('B', 4, 'fx-hit', 650);   // ô số 4 của Máy: hiệu ứng "trúng đòn" trong 650 ms
+```
+
+Mỗi lần vẽ, ô tự đọc `FX`, gắn lớp `fx-hit` và đặt `--fxd` = thời gian đã trôi (số âm), nên hiệu ứng **chạy tiếp**, không giật lại từ đầu.
+
+| Lớp | Khi nào | Trông thế nào |
+|---|---|---|
+| `fx-hit` | mất ❤ | rung nhẹ + ửng đỏ; thanh máu chớp đỏ, phần vừa mất (vàng nhạt) tụt dần |
+| `fx-heal` | hồi ❤ / +Khiên | ánh xanh lá |
+| `fx-aim` | Máy chuẩn bị đánh ô này | viền đỏ sáng lên ~0,5 giây |
+| `taunt-up` / `covered` | bạn nhắm đòn 1 mục tiêu | quái Khiêu khích to ra + nhãn, quái được che nhỏ lại; rê vào quái được che thì quái Khiêu khích "giật" về |
+| dải sáng `#beam` | chọn mục tiêu cho ✦ / kỹ năng | đường cong "thở" từ nút ✦ (tím) hoặc quái ra đòn (đỏ) tới con trỏ, bắt dính vào ô hợp lệ |
+| `.flycard` | rút Công trình | thẻ bay ra giữa màn hình, lật mặt, thu nhỏ bay về khu dự bị |
+
+Thêm hiệu ứng mới = thêm 1 lớp CSS + 1 `@keyframes` dùng `var(--fxd)` làm delay, rồi gọi `fx(o, i, 'tên-lớp', ms)`.
+Người dùng bật "giảm chuyển động" trong hệ điều hành thì mọi hiệu ứng tự tắt (`prefers-reduced-motion`).
+
+## 8. Mẫu viết yêu cầu (prompt) cho hiệu ứng
+
+Một yêu cầu tốt có đủ **5 ý: Khi nào · Đối tượng · Trông thế nào · Bao lâu · Kết thúc ra sao**.
+
+```
+[Hiệu ứng] Trúng đòn
+- Khi nào: quái mất ❤ (cả do Đau, Gai, Nhà).
+- Đối tượng: ô của quái bị đánh + thanh máu của nó.
+- Trông thế nào: rung trái–phải 3 nhịp (±4px), phủ đỏ mờ rồi tắt; thanh máu chớp đỏ 2 lần,
+  phần máu vừa mất hiện vàng nhạt rồi tụt dần về số mới.
+- Bao lâu: rung 0,45 s, đỏ 0,65 s, tụt máu 0,7 s (bắt đầu sau 0,35 s).
+- Kết thúc: trở về như cũ, không để lại dấu; nếu quái bị hạ thì thẻ rời sân sau hiệu ứng.
+- Không được: làm xô lệch ô bên cạnh; chạy lại khi bàn vẽ lại.
+```
+
+Mẹo: gửi kèm **ảnh chụp / GIF tham khảo** từ game khác, nói rõ "giống chỗ nào" (nhịp, màu, cảm giác),
+và nói điều **không** muốn (ví dụ "không lóe trắng cả màn hình").
