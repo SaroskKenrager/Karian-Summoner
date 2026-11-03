@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Karian's Summoner · Bàn chơi ảo v7.0</title>
+<link rel="icon" href="assets/icons/Fruit.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Be+Vietnam+Pro:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><img src="assets/icons/Fruit.webp" alt=""><span>Karian's Summoner<small>Bàn chơi ảo v7.0 · 1v1 với Máy</small></span></div>
+  <div class="status" id="status"></div>
+  <div class="tools">
+    <button class="btn ghost" id="btnRules" type="button">Luật nhanh</button>
+    <button class="btn ghost" id="btnNew" type="button">Ván mới</button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- Cột trái: Máy + nhật ký -->
+  <aside class="panel left">
+    <section class="side-info" id="infoB"></section>
+    <section class="logbox">
+      <h3>Nhật ký</h3>
+      <ol id="log"></ol>
+    </section>
+  </aside>
+
+  <!-- Giữa: hai lưới 3x3 đối diện + khay xí ngầu -->
+  <section class="table" id="table">
+    <div class="boardwrap enemy">
+      <div class="boardlabel"><b>Máy</b><span class="rows"><i>Sau</i><i>Giữa</i><i>Trước</i></span></div>
+      <div class="grid" id="gridB"></div>
+    </div>
+    <div class="tray" id="tray"></div>
+    <div class="boardwrap me">
+      <div class="boardlabel"><b>Bạn</b><span class="rows"><i>Trước</i><i>Giữa</i><i>Sau</i></span></div>
+      <div class="grid" id="gridP"></div>
+    </div>
+  </section>
+
+  <!-- Cột phải: bạn, tay (vách che), xem thẻ -->
+  <aside class="panel right">
+    <section class="side-info" id="infoP"></section>
+    <section class="hand">
+      <h3>Vách che · Dự bị <small>(kéo vào lưới)</small></h3>
+      <div class="handcards" id="hand"></div>
+      <div id="bldArea"></div>
+    </section>
+    <section class="viewer" id="viewer"><p class="muted">Rê chuột / chạm vào một thẻ để xem lớn.</p></section>
+  </aside>
+</main>
+
+<!-- Vòng khắc hệ (góc màn hình) -->
+<aside class="wheel" id="wheel" title="Vòng khắc hệ: A → B nghĩa là A khắc B (+1 sát thương), bị khắc −1 (tối thiểu 1)"></aside>
+
+<div class="banner" id="banner" hidden></div>
+<div class="toast" id="toast" hidden></div>
+<div class="modal" id="modal" hidden><div class="modal-card" id="modalCard"></div></div>
+
+<script src="script.js"></script>
+</body>
+</html>
