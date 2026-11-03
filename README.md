@@ -37,9 +37,18 @@ tools/extract_cards.js               # tách ảnh thẻ từ file in cards.html
 
 Mọi chỉ số vẫn chỉnh tay được: nút −/+ ❤ trên từng thẻ, Khiên và 4 trạng thái ở khung xem thẻ, ✦ ở bảng người chơi. Nhấp đúp vòng khắc hệ (góc dưới) để thu gọn.
 
+## Công cụ hỗ trợ (v7.1)
+
+- **Bàn người chơi · thứ tự lượt** (cột dọc cạnh bàn): ✨ Thuật triệu hồi → 1 Đầu lượt → 2 Thảy → 3 Gán → 4 Thi triển → 5 Cuối lượt, kèm thanh Vòng 1–8. Bước đang chạy nổi lên (xanh = Bạn, đỏ = Máy); ✨ nhấp nháy khi sân còn chỗ và còn dự bị.
+- **Năng lượng dạng nút chữ:** bấm là làm — 1 ✦ thảy lại 1 xí ngầu · 2 ✦ +2 Khiên · 2 ✦ dời quái sang ô trống (Chuẩn) · 3 ✦ đổi màu (Chuẩn) · 2 ✦ rút Công trình (Mở rộng). Nút mờ khi chưa đủ ✦ hoặc tầng chưa cho dùng (rê chuột để xem lý do).
+- **Trợ lý:** rê/chạm xí ngầu → quái kích hoạt được viền xanh + tên kỹ năng (hoặc “mặt trống”); lúc chọn mục tiêu, mỗi ô hiện trước số ❤ sẽ mất (đã tính khắc hệ, Khiên, Yếu/Hăng hái, 💥 = hạ). Nút **💡 Gợi ý** đề xuất gọi dự bị, cách gán, viên nên thảy lại, khi nào dùng Khiên.
+- **Nội tại / Ngưỡng / Di nguyện / Đặc tính / Nhà** chạy tự động và hiện thông báo tím trong Nhật ký; khung xem thẻ liệt kê từng dòng đặc biệt kèm nút **▶ Chạy** để chạy tay.
+- **Xe:** ▶ Dùng xe → chọn mục tiêu → hiệu ứng xong mới rời sân (Bỏ qua = xe ở lại). Frost Coach tự chặn 1 đòn đơn vào đồng đội kề. Nhà tự kích hoạt Đầu/Cuối lượt, đếm 🎲, về 0 thành cảnh.
+- **Kết thúc phiên** (luôn hiện): dừng mọi xử lý và tải `karian-session-*.json` (nhật ký, trạng thái bàn, bước cuối, lỗi). Mỗi ván lưu số liệu (kết quả, ✦ nhận/tiêu, Công trình đã dùng, thời gian) — tải ở bảng kết thúc.
+
 ## Giới hạn bản thử nghiệm
 
-- Máy chưa dùng Công trình & Xe. Hiệu ứng Nhà/Xe của bạn thì tự áp dụng tay (bộ đếm 🎲 trên ô, nút *Dùng xe*).
+- Máy chưa dùng Công trình & Xe.
 - Di nguyện, Ngưỡng ❤, Tinh linh, Gai, Sấm truyền được xử lý tự động (tự chọn mục tiêu), kể cả với quái của bạn.
 
 Hình Tatari, icon hệ/vai trò © Farlight Games (Clash of Critters): chỉ dùng tạm để playtest, không thương mại.

@@ -16,6 +16,7 @@
   <div class="tools">
     <button class="btn ghost" id="btnRules" type="button">Luật nhanh</button>
     <button class="btn ghost" id="btnNew" type="button">Ván mới</button>
+    <button class="btn warn" id="btnEnd" type="button" title="Dừng mọi xử lý và tải nhật ký lỗi">Kết thúc phiên</button>
   </div>
 </header>
 
@@ -31,6 +32,8 @@
 
   <!-- Giữa: hai lưới 3x3 đối diện + khay xí ngầu -->
   <section class="table" id="table">
+    <aside class="steps" id="steps" aria-label="Thứ tự lượt chơi"></aside>
+    <div class="boards">
     <div class="boardwrap enemy">
       <div class="boardlabel"><b>Máy</b><span class="rows"><i>Sau</i><i>Giữa</i><i>Trước</i></span></div>
       <div class="grid" id="gridB"></div>
@@ -39,6 +42,7 @@
     <div class="boardwrap me">
       <div class="boardlabel"><b>Bạn</b><span class="rows"><i>Trước</i><i>Giữa</i><i>Sau</i></span></div>
       <div class="grid" id="gridP"></div>
+    </div>
     </div>
   </section>
 

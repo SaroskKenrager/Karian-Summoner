@@ -14,6 +14,17 @@ const ST_KEYS = ['pain', 'stun', 'weak', 'rage'];
 const ST_VI = { pain: 'Đau', stun: 'Choáng', weak: 'Yếu', rage: 'Hăng hái' };
 const ST_FROM_VI = { 'Đau': 'pain', 'Choáng': 'stun', 'Yếu': 'weak', 'Hăng hái': 'rage' };
 const ROW_VI = ['Trước', 'Giữa', 'Sau'];
+const STEPS = [
+  { n: 0, t: '✨ Thuật triệu hồi', d: 'Suốt lượt mình: gọi 1 dự bị (trước khi gán) · xây Công trình' },
+  { n: 1, t: '1 · Đầu lượt', d: 'Bỏ Khiên · Đau −2 ❤ · nội tại · Nhà đầu lượt' },
+  { n: 2, t: '2 · Thảy xí ngầu', d: '×5 · thảy lại 1 lần' },
+  { n: 3, t: '3 · Gán xí ngầu', d: 'Viên hệ X → 1 quái hệ X. Thiếu quái? Gọi dự bị trước' },
+  { n: 4, t: '4 · Thi triển', d: 'Làm dòng kỹ năng · Hỗ trợ trước' },
+  { n: 5, t: '5 · Cuối lượt', d: 'Bỏ Choáng / Yếu / Hăng hái · Nhà cuối lượt · viên dư +1 ✦' }
+];
+const ERRORS = [];
+window.addEventListener('error', e => ERRORS.push({ t: Date.now(), msg: e.message, at: (e.filename || '') + ':' + e.lineno }));
+window.addEventListener('unhandledrejection', e => ERRORS.push({ t: Date.now(), msg: String(e.reason && e.reason.stack || e.reason) }));
 const PIPS = { 1: [[50, 50]], 2: [[29, 29], [71, 71]], 3: [[27, 27], [50, 50], [73, 73]], 4: [[29, 29], [71, 29], [29, 71], [71, 71]], 5: [[27, 27], [73, 27], [50, 50], [27, 73], [73, 73]], 6: [[30, 25], [70, 25], [30, 50], [70, 50], [30, 75], [70, 75]] };
 const TIERS = {
   van0: { name: 'Ván 0', desc: '3 quái in sẵn, 3 xí ngầu đúng màu đội, không khắc hệ, không trạng thái, không dự bị, không ✦.', firstDice: 2, noElem: true, noStatus: true, noEnergy: true, noReroll: true, teamDice: true, buildings: false, energyActs: false },
@@ -70,6 +81,11 @@ function flash(o, i, heal) {
   const c = heal ? 'flash-heal' : 'flash'; el.classList.remove(c); void el.offsetWidth; el.classList.add(c);
 }
 const uName = u => `<b>${esc(M(u).name)}</b>`;
+/** Nội tại / Ngưỡng / Di nguyện / Nhà kích hoạt: ghi nhật ký nổi bật + toast */
+function notify(msg, o) { log('✦ ' + msg, o, 'pas'); toast(msg); }
+function spend(o, n, why) { const s = side(o); s.energy -= n; S.stats[o].spent += n; log(`${who(o)} trả ${n} ✦: ${why}`, o); }
+const houseActive = o => side(o).grid.some(x => x && x.kind === 'bld' && BLD[x.id].kind === 'house' && x.counter > 0);
+function setStep(n) { if (!S) return; S.step = n; renderSteps(); }
 
 /* ================= xí ngầu ================= */
 function dieSvg(n, el) {
@@ -122,30 +138,39 @@ function setStatus(o, i, key) {
 }
 
 /** Gây sát thương lên ô (to, ti). direct=true: mất ❤ thẳng (không qua Khiên, không cộng trừ). */
-async function damage(srcO, att, to, ti, v, ctx, direct) {
-  const t = side(to).grid[ti]; if (!isMon(t)) return;
+async function damage(srcO, att, to, ti, v, ctx, direct, single) {
+  const tg = side(to).grid, t = tg[ti]; if (!isMon(t)) return;
+  // Xe Frost Coach: chặn 1 đòn đơn vào đồng đội kề xe, rồi rời sân
+  if (single && !direct) {
+    const cj = adjIdx(ti).find(j => tg[j] && tg[j].kind === 'bld' && BLD[tg[j].id].effect === 'block');
+    if (cj !== undefined) { const car = tg[cj]; tg[cj] = null; side(to).bldUsed.push(car); ctx.blocked.add(ti); S.stats[to].blds.push(car.id); notify(`🚌 ${esc(BLD[car.id].name)} chặn đòn vào ${uName(t)} rồi rời sân`, to); render(); return; }
+  }
+  const prev = t.hp;
   let d = direct ? v : calcDmg(att, t, v, ctx);
   let abs = 0;
   if (!direct) { abs = Math.min(t.shield, d); t.shield -= abs; }
   const lost = d - abs; t.hp -= lost; ctx.dealt = true; flash(to, ti);
-  const parts = []; if (!direct && att) { const em = elemMod(M(att).element, M(t).element); if (em) parts.push(em > 0 ? 'khắc +1' : 'bị khắc −1'); }
+  const parts = []; if (!direct && att) { const em = elemMod(M(att).element, M(t).element); if (em) parts.push(em > 0 ? 'khắc +1' : 'bị khắc −1'); if (ctx.rage) parts.push('Hăng hái +1'); if (ctx.weak) parts.push('Yếu −1'); if (t.st.pain && pasKey(att) === 'burnBonus') parts.push(M(att).passive.name + ' +1'); }
   if (abs) parts.push(`Khiên đỡ ${abs}`);
-  log(`${att ? uName(att) + ' → ' : ''}${uName(t)}: −${lost} ❤${parts.length ? ' (' + parts.join(', ') + ')' : ''}`, srcO);
+  if (!ctx.quiet) log(`${att ? uName(att) + ' → ' : ''}${uName(t)}: −${lost} ❤${parts.length ? ' (' + parts.join(', ') + ')' : ''}`, srcO);
   // Gai: quái cận chiến đánh trúng mất 1 ❤
   if (!direct && att && isMelee(att) && pasKey(t) === 'thorns') {
     const ai = side(srcO).grid.indexOf(att);
-    if (ai >= 0) { att.hp -= 1; flash(srcO, ai); log(`${uName(t)} (${M(t).passive.name}): ${uName(att)} mất 1 ❤`, to); if (att.hp <= 0) await ko(srcO, ai); }
+    if (ai >= 0) { const p2 = att.hp; att.hp -= 1; flash(srcO, ai); notify(`${uName(t)} · Nội tại <i>${esc(M(t).passive.name)}</i>: ${uName(att)} mất 1 ❤`, to); if (att.hp <= 0) await ko(srcO, ai); else await checkThreshold(srcO, ai, p2); }
   }
   if (t.hp <= 0) {
     await ko(to, ti);
     if (att && pasKey(att) === 'chain' && side(srcO).grid.includes(att) && !ctx.chained) {
-      const c = monsOf(to); if (c.length) { ctx.chained = true; const j = aiPickEnemy(srcO, att, c, 2, ctx); log(`${uName(att)} (${M(att).passive.name}) lan 2 sát thương`, srcO); await damage(srcO, null, to, j, 2, { }, true); }
+      const c = monsOf(to); if (c.length) { ctx.chained = true; const j = aiPickEnemy(srcO, att, c, 2, ctx); notify(`${uName(att)} · Nội tại <i>${esc(M(att).passive.name)}</i>: 2 sát thương lan sang ${uName(side(to).grid[j])}`, srcO); await damage(srcO, null, to, j, 2, { tg: {}, blocked: new Set() }, true); }
     }
-  } else await checkThreshold(to, ti);
+  } else await checkThreshold(to, ti, prev);
 }
-async function checkThreshold(o, i) {
+async function checkThreshold(o, i, prev) {
+  // Ngưỡng máu: mỗi lần ❤ tụt từ trên X xuống ≤X thì chạy ngay (kể cả trong lượt đối thủ)
   const u = side(o).grid[i]; if (!isMon(u)) return; const th = M(u).threshold;
-  if (th && !u.thrUsed && u.hp <= th.at) { u.thrUsed = true; log(`${uName(u)} còn ≤${th.at} ❤ → <i>${esc(th.name)}</i>`, o); await runEffects(o, u, i, th.effects, aiChooser, th.name); }
+  if (!th || u.hp <= 0 || prev == null || !(prev > th.at && u.hp <= th.at)) return;
+  notify(`${uName(u)} còn ≤${th.at} ❤ → Ngưỡng <i>${esc(th.name)}</i>`, o);
+  await runEffects(o, u, i, th.effects, o === 'P' && S.turn === 'P' ? playerChooser : aiChooser, th.name);
 }
 async function ko(o, i) {
   const s = side(o), u = s.grid[i]; if (!isMon(u)) return; const m = M(u);
@@ -188,6 +213,7 @@ function enemyOptions(code, attO, att, ctx) {
     case 'col': { const cols = [...new Set(ms.map(colOf))]; return { pick: 1, opts: cols.map(c => [0, 1, 2].map(r => r * 3 + c).filter(j => isMon(g[j]))) }; }
     case 'cross': return { pick: 1, center: true, opts: R.map(i => [i, ...adjIdx(i).filter(j => isMon(g[j]))]) };
     case 'all': return { auto: ms };
+    case 'tauntE': { const tt = ms.filter(i => isTaunt(g[i])); return { pick: 1, opts: (tt.length ? tt : ms).map(i => [i]) }; }
   }
   return { auto: [] };
 }
@@ -203,35 +229,74 @@ function allyOptions(code, o, src, si) {
   }
   return { auto: [] };
 }
-const ENEMY_CODES = ['one', 'other', 'anyE', 'adjE', 'three', 'row', 'col', 'cross', 'all'];
+const ENEMY_CODES = ['one', 'other', 'anyE', 'adjE', 'three', 'row', 'col', 'cross', 'all', 'tauntE'];
+const SINGLE_CODES = ['one', 'other', 'anyE', 'tauntE'];
 
 /** Chạy danh sách hiệu ứng của 1 kỹ năng. chooser(req) → Promise<mảng ô> */
 async function runEffects(o, src, si, effects, chooser, label, fromDead) {
-  const ctx = { rage: !!src.st.rage, weak: !!src.st.weak, dealt: false, tg: {} };
+  const isUnit = isMon(src) && !fromDead, att = isUnit ? src : null, st = (src && src.st) || {};
+  const ctx = { rage: isUnit && !!st.rage, weak: isUnit && !!st.weak, dealt: false, tg: {}, blocked: new Set(), skipped: false };
   const fo = foe(o);
   for (const e of effects) {
-    if (S.over) return;
+    if (S.over) return ctx;
     if (e.k === 'rev') { await revive(o, e.v, chooser); continue; }
+    if (e.k === 'en') { const s = side(o), b = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + e.v); S.stats[o].gained += s.energy - b; log(`${who(o)} +${s.energy - b} ✦`, o); render(); continue; }
     const enemy = ENEMY_CODES.includes(e.t);
     let targets = ctx.tg[e.t];
     if (!targets) {
-      const op = enemy ? enemyOptions(e.t, o, fromDead ? null : src, ctx) : allyOptions(e.t, o, src, si);
+      const op = enemy ? enemyOptions(e.t, o, att, ctx) : allyOptions(e.t, o, src, si);
       if (op.auto) targets = op.auto;
       else if (!op.opts.length) targets = [];
-      else targets = await chooser({ o, side: enemy ? fo : o, src, effect: e, opts: op.opts, pick: op.pick, center: op.center, label, ctx });
+      else { targets = await chooser({ o, side: enemy ? fo : o, src, effect: e, opts: op.opts, pick: op.pick, center: op.center, label, ctx }); if (!targets || !targets.length) ctx.skipped = true; }
       ctx.tg[e.t] = targets;
     }
-    targets = (targets || []).filter(i => isMon(side(enemy ? fo : o).grid[i]));
-    if (!targets.length) { log(`${label}: không có mục tiêu cho “${esc(e.printed || e.t)}”`, o); continue; }
-    if (e.k === 'd') { for (const i of targets) { await damage(o, fromDead ? null : src, fo, i, e.v, ctx); if (S.over) return; } if (fromDead) { /* Di nguyện: không tính khắc hệ */ } }
+    targets = (targets || []).filter(i => isMon(side(enemy ? fo : o).grid[i]) && !(enemy && ctx.blocked.has(i)));
+    if (!targets.length) { if (!ctx.skipped) log(`${esc(label)}: không có mục tiêu cho “${esc(e.printed || e.t)}”`, o); continue; }
+    if (e.k === 'd') { for (const i of targets) { await damage(o, att, fo, i, e.v, ctx, false, SINGLE_CODES.includes(e.t)); if (S.over) return ctx; } }
+    else if (e.k === 'loss') { for (const i of targets) { await damage(o, null, fo, i, e.v, ctx, true); if (S.over) return ctx; } }
+    else if (e.k === 'strip') { targets.forEach(i => { const u = side(fo).grid[i]; log(`${uName(u)} mất hết Khiên (${u.shield})`, o); u.shield = 0; flash(fo, i); }); }
     else if (e.k === 'st') { if (T().noStatus) continue; const k = ST_FROM_VI[e.v]; targets.forEach(i => { if (setStatus(fo, i, k)) log(`${uName(side(fo).grid[i])} bị <b>${e.v}</b>`, o); }); }
-    else if (e.k === 'h') { { const got = targets.map(i => [side(o).grid[i], heal(o, i, e.v)]).filter(x => x[1] > 0); log(got.length ? got.map(([u, n]) => `${uName(u)} +${n} ❤`).join(', ') : `${esc(label)}: không ai cần hồi ❤`, o); } }
+    else if (e.k === 'h') { const got = targets.map(i => [side(o).grid[i], heal(o, i, e.v)]).filter(x => x[1] > 0); log(got.length ? got.map(([u, n]) => `${uName(u)} +${n} ❤`).join(', ') : `${esc(label)}: không ai cần hồi ❤`, o); }
     else if (e.k === 's') { targets.forEach(i => { addShield(o, i, e.v); log(`${uName(side(o).grid[i])} +${e.v} Khiên`, o); }); }
     else if (e.k === 'bf') { if (T().noStatus) continue; const k = ST_FROM_VI[e.v]; targets.forEach(i => { if (setStatus(o, i, k)) log(`${uName(side(o).grid[i])} được <b>${e.v}</b>`, o); }); }
     render();
   }
-  if (ctx.dealt && !fromDead) { delete src.st.rage; delete src.st.weak; }
+  if (ctx.dealt && isUnit) { delete src.st.rage; delete src.st.weak; }
   render();
+  return ctx;
+}
+/** Hiệu ứng Công trình / Xe theo cùng định dạng kỹ năng */
+function bldEffects(b) {
+  const v = b.value;
+  return ({
+    heal1: [{ k: 'h', v, t: 'ally', printed: '1 đồng đội' }], healteam: [{ k: 'h', v, t: 'team', printed: 'cả đội' }],
+    shield1: [{ k: 's', v, t: 'ally', printed: '1 đồng đội' }], shieldteam: [{ k: 's', v, t: 'team', printed: 'cả đội' }],
+    rage1: [{ k: 'bf', v: 'Hăng hái', t: 'ally', printed: '1 đồng đội' }], weak1: [{ k: 'st', v: 'Yếu', t: 'anyE', printed: '1 địch' }],
+    pain1: [{ k: 'st', v: 'Đau', t: 'anyE', printed: '1 địch' }], stun1: [{ k: 'st', v: 'Choáng', t: 'anyE', printed: '1 địch' }],
+    strip: [{ k: 'strip', t: 'anyE', printed: '1 địch mất hết Khiên' }], ping: [{ k: 'loss', v, t: 'tauntE', printed: '1 địch (Khiêu khích trước)' }],
+    energy: [{ k: 'en', v, t: 'self' }]
+  })[b.effect] || [];
+}
+async function runHouse(o, i) {
+  const b = side(o).grid[i]; if (!b || b.kind !== 'bld' || b.counter <= 0) return;
+  const B = BLD[b.id]; b.counter--; S.acting = { o, i }; render();
+  notify(`🏠 ${esc(B.name)}: ${esc(B.text_vn)} (còn 🎲${b.counter})`, o);
+  await runEffects(o, b, i, bldEffects(B), o === 'P' ? playerChooser : aiChooser, B.name);
+  if (b.counter === 0) log(`${esc(B.name)} hết xí ngầu trắng → làm cảnh`, o);
+  S.acting = null; render();
+}
+async function useVehicle(o, i) {
+  const b = side(o).grid[i]; if (!b || b.kind !== 'bld') return; const B = BLD[b.id];
+  if (B.trigger !== 'use') { toast(`${B.name}: tự kích hoạt khi đối thủ đánh đơn vào đồng đội kề xe.`); return; }
+  if (o !== 'P' || S.turn !== 'P' || S.busy || S.phase !== 'play') { toast('Chỉ dùng xe trong lượt của bạn.'); return; }
+  S.busy = true; S.acting = { o, i }; render();
+  log(`Bạn dùng Xe <b>${esc(B.name)}</b>: ${esc(B.text_vn)}`, 'P');
+  const ctx = await runEffects(o, b, i, bldEffects(B), playerChooser, B.name);
+  S.busy = false; S.acting = null;
+  if (ctx && ctx.skipped) { log(`Hủy dùng ${esc(B.name)} — xe ở lại sân`, 'P'); render(); return; }
+  if (side(o).grid[i] === b) side(o).grid[i] = null;
+  side(o).bldUsed.push(b); S.stats[o].blds.push(b.id);
+  log(`${esc(B.name)} đã giúp xong → rời sân`, 'P'); render();
 }
 async function revive(o, hp, chooser) {
   const s = side(o), cands = s.dead.slice();
@@ -301,43 +366,73 @@ function onPickCell(o, i) {
 /* ================= vòng lượt ================= */
 function startTurn(o) {
   const s = side(o); const tasks = [];
-  s.dice = []; s.rolled = false; s.rerolled = false;
-  monsOf(o).forEach(i => { const u = s.grid[i]; u.shield = 0; u.acted = false; });
-  // Đau: mất 2 ❤ thẳng rồi bỏ token
-  for (const i of monsOf(o)) { const u = s.grid[i]; if (u.st.pain) { delete u.st.pain; tasks.push(async () => { log(`${uName(u)} bị Đau: mất 2 ❤`, o); await damage(o, null, o, i, 2, {}, true); }); } }
+  s.dice = []; s.rolled = false; s.rerolled = false; s.summoned = false; s.drew = false;
+  s.grid.forEach(x => { if (x && x.kind === 'bld') x.moved = false; });
+  monsOf(o).forEach(i => { const u = s.grid[i]; if (u.shield) log(`${uName(u)} bỏ ${u.shield} Khiên`, o); u.shield = 0; u.acted = false; });
+  // Đau: mất 2 ❤ thẳng rồi bỏ token (có kích hoạt Ngưỡng)
+  for (const i of monsOf(o)) { const u = s.grid[i]; if (u.st.pain) { delete u.st.pain; tasks.push(async () => { const j = s.grid.indexOf(u); if (j < 0) return; log(`${uName(u)} bị Đau: mất 2 ❤ thẳng, bỏ token`, o); await damage(o, null, o, j, 2, { tg: {}, blocked: new Set(), quiet: true }, true); }); } }
   // Nội tại & đặc tính đầu lượt
   for (const i of monsOf(o)) {
-    const u = s.grid[i], m = M(u);
-    if (pasKey(u) === 'regenAlly') tasks.push(async () => { const ms = monsOf(o); if (!ms.length) return; const j = ms.sort((a, b) => (s.grid[a].hp - s.grid[a].maxHp) - (s.grid[b].hp - s.grid[b].maxHp))[0]; const n = heal(o, j, 1); if (n) log(`${uName(u)} (${m.passive.name}): ${uName(s.grid[j])} hồi 1 ❤`, o); });
-    if (pasKey(u) === 'photo') tasks.push(async () => { const ii = s.grid.indexOf(u); if (ii < 0) return; [ii, ...adjIdx(ii).filter(j => isMon(s.grid[j]))].forEach(j => heal(o, j, 1)); log(`${uName(u)} (${m.passive.name}): mình & đồng đội kề hồi 1 ❤`, o); });
-    if (m.trait_top && m.trait_top.k === 'steady' && rowOf(i) === 0) { u.shield += m.trait_top.sh; log(`${uName(u)} (${m.trait_top.n}): +${m.trait_top.sh} Khiên`, o); }
-    if (m.trait_top && m.trait_top.k === 'lone' && !adjIdx(i).some(j => isMon(s.grid[j]))) { u.shield += m.trait_top.sh; log(`${uName(u)} (${m.trait_top.n}): +${m.trait_top.sh} Khiên`, o); }
+    const u = s.grid[i];
+    if (pasKey(u) === 'regenAlly' || pasKey(u) === 'photo') tasks.push(async () => runPassive(o, u));
+    tasks.push(async () => runTopTrait(o, u));
   }
+  // Nhà kích hoạt Đầu lượt
+  s.grid.forEach((b, i) => { if (b && b.kind === 'bld' && BLD[b.id].kind === 'house' && BLD[b.id].trigger === 'start' && b.counter > 0) tasks.push(() => runHouse(o, s.grid.indexOf(b))); });
   return (async () => { for (const t of tasks) { if (S.over) return; await t(); } render(); })();
 }
-function endTurn(o) {
+async function runPassive(o, u) {
+  const s = side(o), ii = s.grid.indexOf(u), m = M(u); if (ii < 0 || !m.passive) return;
+  if (m.passive.key === 'regenAlly') {
+    const ms = monsOf(o).filter(j => s.grid[j].hp < s.grid[j].maxHp); if (!ms.length) { log(`${uName(u)} · Nội tại ${esc(m.passive.name)}: không ai cần hồi`, o); return; }
+    const j = ms.sort((a, b) => (s.grid[a].hp / s.grid[a].maxHp) - (s.grid[b].hp / s.grid[b].maxHp))[0];
+    heal(o, j, 1); notify(`${uName(u)} · Nội tại <i>${esc(m.passive.name)}</i>: ${uName(s.grid[j])} hồi 1 ❤`, o);
+  } else if (m.passive.key === 'photo') {
+    const got = [ii, ...adjIdx(ii).filter(j => isMon(s.grid[j]))].filter(j => heal(o, j, 1) > 0);
+    notify(`${uName(u)} · Nội tại <i>${esc(m.passive.name)}</i>: ${got.length ? got.map(j => uName(s.grid[j])).join(', ') + ' hồi 1 ❤' : 'không ai cần hồi'}`, o);
+  } else toast(`${m.passive.name}: nội tại luôn có hiệu lực, được tính tự động.`);
+  render();
+}
+function runTopTrait(o, u, manual) {
+  const s = side(o), i = s.grid.indexOf(u), t = M(u).trait_top; if (i < 0 || !t) return;
+  if (t.k === 'steady') { if (rowOf(i) === 0) { u.shield += t.sh; notify(`${uName(u)} · Kiên định <i>${esc(t.n)}</i>: đứng hàng Trước → +${t.sh} Khiên`, o); } else if (manual) toast(`${t.n}: chỉ khi đứng hàng Trước.`); }
+  else if (t.k === 'lone') { if (!adjIdx(i).some(j => isMon(s.grid[j]))) { u.shield += t.sh; notify(`${uName(u)} · Độc lập <i>${esc(t.n)}</i>: không có đồng đội kề → +${t.sh} Khiên`, o); } else if (manual) toast(`${t.n}: chỉ khi không có đồng đội kề.`); }
+  else if (t.k === 'build' && manual) { adjIdx(i).filter(j => isMon(s.grid[j])).forEach(j => heal(o, j, t.heal)); notify(`${uName(u)} · Kiến thiết <i>${esc(t.n)}</i>: đồng đội kề hồi ${t.heal} ❤`, o); }
+  render();
+}
+async function endTurn(o) {
   const s = side(o);
-  monsOf(o).forEach(i => { const u = s.grid[i]; delete u.st.stun; delete u.st.weak; delete u.st.rage; u.acted = false; });
-  // viên dư → +1 ✦
+  // Nhà kích hoạt Cuối lượt
+  for (const b of s.grid.slice()) { if (S.over) return; if (b && b.kind === 'bld' && BLD[b.id].kind === 'house' && BLD[b.id].trigger === 'end' && b.counter > 0) await runHouse(o, s.grid.indexOf(b)); }
+  const cleared = [];
+  monsOf(o).forEach(i => { const u = s.grid[i]; if (u.st.stun || u.st.weak || u.st.rage) cleared.push(uName(u)); delete u.st.stun; delete u.st.weak; delete u.st.rage; u.acted = false; });
+  if (cleared.length) log(`Cuối lượt: bỏ Choáng/Yếu/Hăng hái trên ${cleared.join(', ')}`, o);
+  // Viên không có quái cùng màu trên sân → +1 ✦ (mặt trống không đổi thành ✦)
   if (!T().noEnergy) {
-    const left = s.dice.filter(d => !d.used && d.face).length;
-    if (left) { const before = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + left); log(`${who(o)}: ${left} viên dư → +${s.energy - before} ✦`, o); }
+    const els = new Set(monsOf(o).map(i => M(s.grid[i]).element));
+    const left = s.dice.filter(d => !d.used && d.face && !els.has(d.el)).length;
+    if (left) { const before = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + left); S.stats[o].gained += s.energy - before; log(`${who(o)}: ${left} viên không có quái cùng màu → +${s.energy - before} ✦`, o); }
+    if (houseActive(o) && s.energy > D.rules.energy.cap_with_house_end_of_turn) { log(`${who(o)}: Nhà còn xí ngầu → chỉ giữ tối đa 2 ✦ (bỏ ${s.energy - 2})`, o); s.energy = D.rules.energy.cap_with_house_end_of_turn; }
   }
   s.dice = []; s.rolled = false;
 }
 async function beginTurn() {
   if (S.over) return;
-  const o = S.turn;
+  const o = S.turn; S.turnCount++;
   log(`Vòng ${S.round}/${S.maxRounds} · Lượt ${who(o)}`, null, 't');
-  S.busy = true; render();
+  S.busy = true; setStep(1); render();
+  if (o === 'B') await sleep(450);
   await startTurn(o); if (S.over) return;
   S.busy = false;
   if (o === 'B') { await botTurn(); if (!S.over) nextTurn(); }
-  else { prepPlayerDice(); render(); }
+  else { prepPlayerDice(); setStep(2); render(); }
 }
-function nextTurn() {
+async function nextTurn() {
   if (S.over) return;
-  endTurn(S.turn);
+  S.busy = true; setStep(5); render();
+  await endTurn(S.turn); if (S.over) return;
+  await sleep(S.turn === 'B' ? 500 : 250);
+  S.busy = false;
   if (S.turn !== S.first) { S.round++; if (S.round > S.maxRounds) { gameOver('Hết ' + S.maxRounds + ' vòng'); return; } }
   S.turn = foe(S.turn); S.firstTurn = false;
   beginTurn();
@@ -358,12 +453,14 @@ function gameOver(reason) {
   let res; if (p.total !== b.total) res = p.total > b.total ? 'Bạn thắng! 🎉' : 'Máy thắng!';
   else if (p.field !== b.field) res = (p.field > b.field ? 'Bạn thắng' : 'Máy thắng') + ' (nhiều quái trên sân hơn)'; else res = 'Hòa!';
   log(`🏁 Kết thúc (${reason}) — ${res}`, null, 't');
+  saveStats(res, reason, p, b);
   render();
   openModal(`<h2>${res}</h2><p>${esc(reason)}.</p>
     <table class="score"><tr><th></th><th>🍇 quái đã hạ</th><th>🍇 quái còn sống</th><th>Tổng</th><th>Quái trên sân</th></tr>
     <tr><td><b>Bạn</b></td><td>${p.ko}</td><td>${p.alive}</td><td><b>${p.total}</b></td><td>${p.field}</td></tr>
     <tr><td><b>Máy</b></td><td>${b.ko}</td><td>${b.alive}</td><td><b>${b.total}</b></td><td>${b.field}</td></tr></table>
-    <div class="foot"><button class="btn" data-close>Xem bàn</button><button class="btn primary" data-act="newgame">Ván mới</button></div>`);
+    <p class="muted">Thời gian ${fmtTime(Date.now() - S.startTime)} · ${S.turnCount} lượt · ✦ Bạn nhận ${S.stats.P.gained}/tiêu ${S.stats.P.spent} · Máy nhận ${S.stats.B.gained}/tiêu ${S.stats.B.spent} · Công trình đã dùng: ${S.stats.P.blds.map(esc).join(', ') || '—'}</p>
+    <div class="foot"><button class="btn" data-act="dlstats">Tải số liệu các ván (JSON)</button><button class="btn" data-close>Xem bàn</button><button class="btn primary" data-act="newgame">Ván mới</button></div>`);
 }
 
 /* ================= xí ngầu người chơi ================= */
@@ -386,22 +483,24 @@ function rollPlayer() {
   s.dice = els.map(el => ({ el, face: d6(), used: false, sel: false }));
   s.rolled = true; s.noReroll = !!S.chooseColors || T().noReroll; S.chooseColors = 0;
   log(`Bạn thảy: ${s.dice.map(d => EL_VI[d.el] + ' ' + d.face).join(' · ')}`, 'P');
-  render(true);
+  setStep(3); render(true);
 }
-function rerollSelected(paid) {
-  const s = side('P'); const sel = s.dice.filter(d => d.sel && !d.used);
+function rerollSelected(paid, only) {
+  const s = side('P'); const sel = only ? [only] : s.dice.filter(d => d.sel && !d.used);
   if (!sel.length) { toast('Chạm để chọn viên muốn thảy lại.'); return; }
-  if (paid) { if (sel.length !== 1) { toast('Trả 1 ✦ để thảy lại đúng 1 viên.'); return; } if (s.energy < 1) { toast('Không đủ ✦.'); return; } s.energy -= 1; }
+  if (paid) { if (sel.length !== 1) { toast('Trả 1 ✦ để thảy lại đúng 1 viên.'); return; } if (s.energy < 1) { toast('Không đủ ✦.'); return; } }
   else { if (s.rerolled || s.noReroll) { toast('Đã hết lượt thảy lại miễn phí.'); return; } s.rerolled = true; }
+  const before = sel.map(d => EL_VI[d.el] + ' ' + d.face);
   sel.forEach(d => { d.face = d6(); d.sel = false; d.anim = true; });
-  log(`Bạn thảy lại${paid ? ' (1 ✦)' : ''}: ${sel.map(d => EL_VI[d.el] + ' ' + d.face).join(' · ')}`, 'P');
-  render(true);
+  if (paid) spend('P', 1, `thảy lại ${before[0]} → ${sel[0].face}`);
+  else log(`Bạn thảy lại: ${sel.map(d => EL_VI[d.el] + ' ' + d.face).join(' · ')}`, 'P');
+  picked = null; render(true);
 }
-function recolorSelected(el) {
-  const s = side('P'); const sel = s.dice.filter(d => d.sel && !d.used);
+function recolorSelected(el, die) {
+  const s = side('P'); const sel = die ? [die] : s.dice.filter(d => d.sel && !d.used);
   if (sel.length !== 1) { toast('Chọn đúng 1 viên để đổi màu.'); return; }
   if (s.energy < 3) { toast('Đổi màu cần 3 ✦.'); return; }
-  s.energy -= 3; log(`Bạn đổi màu viên ${EL_VI[sel[0].el]} ${sel[0].face} → ${EL_VI[el]} (3 ✦)`, 'P'); sel[0].el = el; sel[0].sel = false; render();
+  spend('P', 3, `đổi màu viên ${EL_VI[sel[0].el]} ${sel[0].face} → ${EL_VI[el]}`); sel[0].el = el; sel[0].sel = false; picked = null; render();
 }
 async function assignDie(di, ci) {
   if (S.busy || S.turn !== 'P' || S.over) return;
@@ -414,13 +513,15 @@ async function assignDie(di, ci) {
   let f = findSkill(u, die, s.dice);
   // Thiên phú (Flarevix): 1 lần/trận đổi xí ngầu thành mặt 6
   const tb = M(u).trait_bot;
-  if (tb && tb.k === 'gifted' && !u.giftUsed && die.face !== 6 && confirm(`${M(u).name} – ${tb.n}: đổi viên này thành mặt 6? (1 lần/trận)`)) { die.face = 6; u.giftUsed = true; f = findSkill(u, die, s.dice); log(`${uName(u)} dùng <i>${tb.n}</i>: xí ngầu thành mặt 6`, 'P'); }
-  if (!f) { toast(`Mặt ${die.face} không kích hoạt kỹ năng nào của ${M(u).name}${die.face === 6 ? ' (thiếu xí ngầu phụ?)' : ''}.`); return; }
-  die.used = true; f.extra.forEach(j => (s.dice[j].used = true)); u.acted = true; die.sel = false;
-  S.busy = true; S.acting = { o: 'P', i: ci }; render();
+  if (tb && tb.k === 'gifted' && !u.giftUsed && die.face !== 6 && confirm(`${M(u).name} – ${tb.n}: đổi viên này thành mặt 6? (1 lần/trận)`)) { die.face = 6; u.giftUsed = true; f = findSkill(u, die, s.dice); notify(`${uName(u)} · Thiên phú <i>${esc(tb.n)}</i>: xí ngầu thành mặt 6`, 'P'); }
+  if (!f) { toast(`Mặt ${die.face} là mặt trống của ${M(u).name}${die.face === 6 ? ' (hoặc thiếu xí ngầu phụ)' : ''}: không kích hoạt.`); return; }
+  die.used = true; f.extra.forEach(j => (s.dice[j].used = true)); u.acted = true; die.sel = false; picked = null; S.hoverDie = null;
+  S.busy = true; S.acting = { o: 'P', i: ci }; setStep(4); render();
   log(`${uName(u)} · <b>${esc(f.skill.name)}</b>${f.skill.tier === 'U' ? ' ★' : ''} (${EL_VI[die.el]} ${die.face})`, 'P');
   await runEffects('P', u, ci, f.skill.effects, playerChooser, f.skill.name);
-  S.busy = false; S.acting = null; render();
+  S.busy = false; S.acting = null;
+  if (!S.over) setStep(s.dice.some(d => !d.used && activators('P', d, s.dice).length) ? 3 : 4);
+  render();
 }
 function endPlayerTurn() {
   if (S.busy || S.turn !== 'P' || S.over) return;
@@ -455,39 +556,41 @@ function botPickField(units, n) {
 }
 function summon(o, u, cell, quiet) {
   const s = side(o); s.reserve.splice(s.reserve.indexOf(u), 1); s.grid[cell] = u;
-  if (!quiet) log(`${who(o)} gọi ${uName(u)} ra ô ${ROW_VI[rowOf(cell)]}-${colOf(cell) + 1}`, o);
+  if (quiet) return;
+  s.summoned = true;
+  log(`✨ ${who(o)} gọi ${uName(u)} ra ô ${ROW_VI[rowOf(cell)]}-${colOf(cell) + 1}`, o);
   const tt = M(u).trait_top;
-  if (tt && tt.k === 'build' && !quiet) { adjIdx(cell).filter(j => isMon(s.grid[j])).forEach(j => heal(o, j, tt.heal)); log(`${uName(u)} (${tt.n}): đồng đội kề hồi ${tt.heal} ❤`, o); }
+  if (tt && tt.k === 'build') runTopTrait(o, u, true);
 }
 function botSummon() {
-  const s = side('B'); let did = false;
-  while (monsOf('B').length < D.rules.team.on_field && s.reserve.length) {
-    const empty = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter(i => !s.grid[i]); if (!empty.length) break;
-    const pick = botPickField(s.reserve, 1)[0];
-    summon('B', pick, bestCellFor('B', pick, empty)); did = true;
-  }
-  return did;
+  const s = side('B');
+  if (s.summoned || monsOf('B').length >= D.rules.team.on_field || !s.reserve.length) return false;
+  const empty = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter(i => !s.grid[i]); if (!empty.length) return false;
+  const pick = botPickField(s.reserve, 1)[0];
+  summon('B', pick, bestCellFor('B', pick, empty)); return true;
 }
-function skillValue(sk) { return sum(sk.effects.map(e => (e.k === 'd' ? e.v * ({ row: 2, col: 2, cross: 2.2, all: 2.6, three: 2.6, adjE: 1.5 }[e.t] || 1) : e.k === 'h' ? e.v * (e.t === 'team' ? 1.6 : 0.8) : e.k === 's' ? e.v * (e.t === 'team' ? 1.5 : 0.7) : 1.2))); }
-function planBot(dice) {
+function skillValue(sk, o) { const miss = o ? sum(monsOf(o).map(i => side(o).grid[i].maxHp - side(o).grid[i].hp)) : 9; return sum(sk.effects.map(e => (e.k === 'd' ? e.v * ({ row: 2, col: 2, cross: 2.2, all: 2.6, three: 2.6, adjE: 1.5 }[e.t] || 1) : e.k === 'h' ? Math.min(e.v * (e.t === 'team' ? 1.6 : 0.8), miss * 0.8) : e.k === 's' ? e.v * (e.t === 'team' ? 1.5 : 0.7) : 1.2))); }
+function planBot(dice, o = 'B') {
   // gán từng viên cho quái tốt nhất
   const plan = [];
+  const saved = dice.map(d => d.used);
   const order = dice.map((d, k) => k).sort((a, b) => dice[b].face - dice[a].face); // viên 6 (có thể cần xí ngầu phụ) trước
   for (const k of order) {
     const d = dice[k]; if (d.used) continue;
-    const acts = activators('B', d, dice).filter(a => !plan.some(p => p.i === a.i));
+    const acts = activators(o, d, dice).filter(a => !plan.some(p => p.i === a.i));
     if (!acts.length) continue;
-    const best = acts.sort((a, b) => skillValue(b.f.skill) - skillValue(a.f.skill))[0];
+    const best = acts.sort((a, b) => skillValue(b.f.skill, o) - skillValue(a.f.skill, o))[0];
     d.used = true; best.f.extra.forEach(j => (dice[j].used = true));
-    plan.push({ i: best.i, u: best.u, skill: best.f.skill, die: d });
+    plan.push({ i: best.i, u: best.u, skill: best.f.skill, die: d, extra: best.f.extra });
   }
-  dice.forEach(d => (d.used = false));
+  dice.forEach((d, k) => (d.used = saved[k]));
   return plan;
 }
 async function botTurn() {
   const s = side('B');
-  await sleep(500);
+  await sleep(400);
   if (botSummon()) { render(); await sleep(500); }
+  setStep(2); await sleep(350);
   // thảy
   let els = diceColorsFor('B');
   if (S.firstTurn && S.first === 'B') {
@@ -506,10 +609,11 @@ async function botTurn() {
     if (w.length) { w.forEach(d => { d.face = d6(); d.anim = true; }); log(`Máy thảy lại: ${w.map(d => EL_VI[d.el] + ' ' + d.face).join(' · ')}`, 'B'); render(true); await sleep(700); }
     // trả 1 ✦ thảy lại khi ✦ đầy
     const w2 = wasted();
-    if (w2.length && s.energy >= 3 && !T().noEnergy) { s.energy -= 1; w2[0].face = d6(); w2[0].anim = true; log(`Máy trả 1 ✦ thảy lại ${EL_VI[w2[0].el]} → ${w2[0].face}`, 'B'); render(true); await sleep(600); }
+    if (w2.length && s.energy >= 3 && !T().noEnergy) { const b0 = EL_VI[w2[0].el] + ' ' + w2[0].face; w2[0].face = d6(); w2[0].anim = true; spend('B', 1, `thảy lại ${b0} → ${w2[0].face}`); render(true); await sleep(600); }
   }
   // đổi màu (3 ✦): viên dư không có quái hệ đó → đổi sang hệ có thể dùng
-  if (T().energyActs && s.energy >= 3) {
+  setStep(3); await sleep(300);
+  if (T().energyActs && s.energy >= 3 && !houseActive('B')) {
     const plan0 = planBot(s.dice); const usedDice = new Set(plan0.map(p => p.die));
     const spare = s.dice.find(d => !usedDice.has(d) && !fieldEls.has(d.el));
     if (spare) {
@@ -517,7 +621,7 @@ async function botTurn() {
       for (const e of fieldEls) {
         const test = { el: e, face: spare.face, used: false };
         if (activators('B', test, s.dice).some(a => !acted.has(a.i)) && !s.dice.some(d => d.el === e && !usedDice.has(d))) {
-          log(`Máy trả 3 ✦ đổi màu viên ${EL_VI[spare.el]} ${spare.face} → ${EL_VI[e]}`, 'B'); spare.el = e; s.energy -= 3; render(true); await sleep(600); break;
+          spend('B', 3, `đổi màu viên ${EL_VI[spare.el]} ${spare.face} → ${EL_VI[e]}`); spare.el = e; render(true); await sleep(600); break;
         }
       }
     }
@@ -526,6 +630,8 @@ async function botTurn() {
   const plan = planBot(s.dice);
   const prio = p => (p.skill.effects.some(e => e.k === 'bf') ? 0 : p.skill.effects.some(e => e.k === 'd') ? 1 : 2);
   plan.sort((a, b) => prio(a) - prio(b));
+  log(plan.length ? `Máy gán: ${plan.map(p => `${EL_VI[p.die.el]} ${p.die.face} → ${uName(p.u)} (${esc(p.skill.name)})`).join(' · ')}` : 'Máy không gán được viên nào', 'B');
+  await sleep(500); setStep(4);
   for (const p of plan) {
     if (S.over) return;
     const ci = s.grid.indexOf(p.u); if (ci < 0 || p.u.st.stun) continue;
@@ -542,7 +648,7 @@ async function botTurn() {
   // +2 Khiên (2 ✦) cho quái nguy hiểm
   if (T().energyActs && s.energy >= 2) {
     const low = monsOf('B').map(i => ({ i, u: s.grid[i] })).filter(x => x.u.hp + x.u.shield <= 4).sort((a, b) => a.u.hp - b.u.hp)[0];
-    if (low) { s.energy -= 2; addShield('B', low.i, 2); log(`Máy trả 2 ✦: ${uName(low.u)} +2 Khiên`, 'B'); render(); await sleep(500); }
+    if (low) { spend('B', 2, `${uName(low.u)} +2 Khiên`); addShield('B', low.i, 2); render(); await sleep(500); }
   }
   await sleep(400);
 }
@@ -561,17 +667,17 @@ function dropOn(o, i, data) {
     if (g[i]) { toast('Ô đã có thẻ.'); return; }
     if (monsOf('P').length >= D.rules.team.on_field) { toast('Sân tối đa 3 quái.'); return; }
     if (S.phase === 'place') { s.reserve.splice(s.reserve.indexOf(u), 1); g[i] = u; }
-    else summon('P', u, i);
+    else { if (s.summoned) { toast('Thuật triệu hồi: mỗi lượt chỉ gọi 1 quái dự bị.'); return; } summon('P', u, i); }
   } else if (data.type === 'cell') {
     const from = data.i; if (from === i) return; const u = g[from]; if (!u) return;
     if (g[i]) { if (S.phase !== 'place') { toast('Chỉ dời sang ô trống.'); return; } g[from] = g[i]; g[i] = u; }
     else {
       if (S.phase === 'play') {
-        if (u.kind === 'bld') { if (!(BLD[u.id].kind === 'vehicle' && !u.moved)) { toast(BLD[u.id].kind === 'vehicle' ? 'Xe chỉ đi 1 ô miễn phí mỗi lượt.' : 'Nhà không di chuyển.'); return; } if (!adjIdx(from).includes(i)) { toast('Xe đi 1 ô (kề).'); return; } u.moved = true; }
+        if (u.kind === 'bld') { if (!(BLD[u.id].kind === 'vehicle' && !u.moved)) { toast(BLD[u.id].kind === 'vehicle' ? 'Xe chỉ đi 1 ô miễn phí mỗi lượt.' : 'Nhà không di chuyển.'); return; } if (!adjIdx(from).includes(i)) { toast('Xe đi 1 ô (kề).'); return; } u.moved = true; log(`Xe <b>${esc(BLD[u.id].name)}</b> đi 1 ô`, 'P'); }
         else {
           if (!T().energyActs) { toast(`Tầng ${T().name} chưa dùng “dời quái”.`); return; }
           if (s.energy < 2) { toast('Dời 1 quái cần 2 ✦.'); return; }
-          if (!confirm(`Trả 2 ✦ để dời ${M(u).name}?`)) return; s.energy -= 2; log(`Bạn trả 2 ✦ dời ${uName(u)}`, 'P');
+          if (!confirm(`Trả 2 ✦ để dời ${M(u).name}?`)) return; spend('P', 2, `dời ${uName(u)} sang ${ROW_VI[rowOf(i)]}-${colOf(i) + 1}`);
         }
       }
       g[i] = u; g[from] = null;
@@ -580,10 +686,10 @@ function dropOn(o, i, data) {
     if (g[i]) { toast('Công trình đặt vào ô trống.'); return; }
     const b = s.bldHand.find(x => x.uid === data.uid); if (!b) return;
     const kind = BLD[b.id].kind;
-    const cnt = g.filter(x => x && x.kind === 'bld' && BLD[x.id].kind === kind).length;
-    if (kind === 'house' && cnt >= D.rules.buildings.max_houses) { toast('Tối đa 2 Nhà.'); return; }
+    const cnt = g.filter(x => x && x.kind === 'bld' && BLD[x.id].kind === kind && (kind === 'vehicle' || x.counter > 0)).length;
+    if (kind === 'house' && cnt >= D.rules.buildings.max_houses) { toast('Tối đa 2 Nhà (nhà làm cảnh không tính).'); return; }
     if (kind === 'vehicle' && cnt >= D.rules.buildings.max_vehicles) { toast('Tối đa 1 Xe.'); return; }
-    s.bldHand.splice(s.bldHand.indexOf(b), 1); g[i] = b; log(`Bạn đặt Công trình <b>${esc(BLD[b.id].name)}</b>`, 'P');
+    s.bldHand.splice(s.bldHand.indexOf(b), 1); g[i] = b; log(`Bạn đặt ${kind === 'house' ? 'Nhà' : 'Xe'} <b>${esc(BLD[b.id].name)}</b>`, 'P');
   }
   render();
 }
@@ -606,15 +712,20 @@ function adjust(o, i, act) {
   const u = side(o).grid[i]; if (!u) return;
   if (u.kind === 'bld') {
     if (act === 'cnt-') u.counter = Math.max(0, u.counter - 1); else if (act === 'cnt+') u.counter++;
-    else if (act === 'use') { side(o).grid[i] = null; side(o).bldUsed.push(u); log(`Bạn dùng ${BLD[u.id].kind === 'vehicle' ? 'Xe' : 'Công trình'} <b>${esc(BLD[u.id].name)}</b> (${esc(BLD[u.id].text_vn)})`, 'P'); }
+    else if (act === 'use') { useVehicle(o, i); return; }
+    else if (act === 'house') { if (o === 'P' && S.turn === 'P' && !S.busy) { S.busy = true; runHouse(o, i).then(() => { S.busy = false; render(); }); } return; }
     render(); return;
   }
-  if (act === 'hp-') { u.hp -= 1; flash(o, i); if (u.hp <= 0) { ko(o, i); return; } checkThreshold(o, i); }
+  if (act === 'hp-') { const prev = u.hp; u.hp -= 1; flash(o, i); if (u.hp <= 0) { ko(o, i); return; } checkThreshold(o, i, prev); }
   else if (act === 'hp+') { if (u.hp < u.maxHp) { u.hp++; flash(o, i, true); } }
   else if (act === 'sh-') u.shield = Math.max(0, u.shield - 1);
   else if (act === 'sh+') u.shield++;
   else if (act.startsWith('st:')) { const k = act.slice(3); if (u.st[k]) delete u.st[k]; else u.st[k] = true; }
   else if (act === 'ko') { if (confirm(`Hạ ${M(u).name}?`)) { u.hp = 0; ko(o, i); return; } }
+  else if (act === 'run:pas') { runPassive(o, u); return; }
+  else if (act === 'run:thr') { const th = M(u).threshold; if (th && !S.busy) { S.busy = true; notify(`${uName(u)} · Ngưỡng <i>${esc(th.name)}</i> (chạy tay)`, o); runEffects(o, u, i, th.effects, o === 'P' ? playerChooser : aiChooser, th.name).then(() => { S.busy = false; render(); }); } return; }
+  else if (act === 'run:top') { runTopTrait(o, u, true); return; }
+  else if (act === 'gift') { u.giftUsed = !u.giftUsed; }
   render();
 }
 
@@ -622,13 +733,29 @@ function adjust(o, i, act) {
 let viewSel = null;
 function render(animDice) {
   if (!S) return;
-  renderStatus(); renderGrid('B'); renderGrid('P'); renderTray(animDice); renderInfo('P'); renderInfo('B'); renderHand(); renderViewer();
+  renderStatus(); renderSteps(); renderGrid('B'); renderGrid('P'); renderTray(animDice); renderInfo('P'); renderInfo('B'); renderHand(); renderViewer();
+}
+const fmtTime = ms => { const t = Math.floor(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+function renderSteps() {
+  const el = $('#steps'); if (!el || !S) return;
+  if (S.phase !== 'play') { el.innerHTML = `<div class="whoturn">Bàn người chơi</div><div class="step on P"><b>Đặt quân</b><small>3 quái úp vào 3 ô bất kỳ, rồi lật cùng lúc</small></div>${STEPS.map(st => `<div class="step"><b>${st.t}</b><small>${st.d}</small></div>`).join('')}`; return; }
+  const o = S.turn, s = side(o);
+  const canSummon = !S.over && monsOf(o).length < D.rules.team.on_field && s.reserve.length && !s.summoned;
+  const rounds = Array.from({ length: S.maxRounds }, (_, k) => `<i class="${k + 1 < S.round ? 'done' : k + 1 === S.round ? 'on' : ''}">${k + 1}</i>`).join('');
+  el.innerHTML = `<div class="whoturn ${o}">${S.over ? 'Kết thúc' : 'Lượt: ' + who(o)}</div><div class="rounds" title="Thanh Vòng">${rounds}</div>` +
+    STEPS.map(st => {
+      const cls = ['step', o];
+      if (st.n === 0) { if (canSummon) cls.push('hint'); if (s.summoned) cls.push('done'); }
+      else if (!S.over) { if (st.n === S.step) cls.push('on'); else if (st.n < S.step) cls.push('done'); }
+      return `<div class="${cls.join(' ')}"><b>${st.t}</b><small>${st.d}</small></div>`;
+    }).join('');
 }
 function renderStatus() {
+  if (!S) return;
   const p = scoreOf('P'), b = scoreOf('B');
   $('#status').innerHTML = `<span class="pill">${esc(T().name)}</span><span class="pill">Vòng ${Math.min(S.round, S.maxRounds)}/${S.maxRounds}</span>` +
     (S.phase === 'place' ? `<span class="pill turnP">Đặt quân</span>` : S.over ? `<span class="pill">Kết thúc</span>` : `<span class="pill ${S.turn === 'P' ? 'turnP' : 'turnB'}">Lượt: ${who(S.turn)}</span>`) +
-    `<span class="pill">🍇 Bạn ${p.total} · Máy ${b.total}</span>`;
+    `<span class="pill">🍇 Bạn ${p.total} · Máy ${b.total}</span><span class="pill" title="Thời gian · số lượt">⏱ ${fmtTime((S.over && S.endTime ? S.endTime : Date.now()) - S.startTime)} · #${S.turnCount}</span>`;
 }
 function tokensHtml(u) {
   let h = '';
@@ -641,6 +768,9 @@ function renderGrid(o) {
   const order = o === 'B' ? [6, 7, 8, 3, 4, 5, 0, 1, 2] : [0, 1, 2, 3, 4, 5, 6, 7, 8];
   const pp = pendingPick, hi = new Set();
   if (pp && pp.req.side === o) pp.req.opts.forEach(op => (pp.req.pick === 1 && !pp.req.center ? op : [op[0]]).forEach(i => hi.add(i)));
+  // Trợ lý: viên đang chọn / rê chuột → quái nào kích hoạt được, kỹ năng gì
+  const sd = side('P').dice, dk = S.hoverDie != null ? S.hoverDie : (picked && picked.type === 'die' ? picked.di : null);
+  const die = o === 'P' && S.turn === 'P' && dk != null && sd[dk] && !sd[dk].used ? sd[dk] : null;
   el.innerHTML = order.map(i => {
     const u = g[i]; let inner = '';
     const cls = ['cell'];
@@ -648,19 +778,34 @@ function renderGrid(o) {
     if (pp && pp.chosen.includes(i) && pp.req.side === o) cls.push('picked');
     if (S.acting && S.acting.o === o && S.acting.i === i) cls.push('acting');
     if (picked && picked.type === 'cell' && o === 'P' && picked.i === i) cls.push('picked');
+    let badge = '';
+    if (isMon(u) && die && M(u).element === die.el) {
+      const f = !u.acted && !u.st.stun ? findSkill(u, die, sd) : null;
+      if (f) { cls.push('can'); badge = `<span class="sklab ok">${esc(f.skill.name)}${f.skill.tier === 'U' ? ' ★' : ''}</span>`; }
+      else badge = `<span class="sklab no">${u.st.stun ? 'Choáng' : u.acted ? 'đã dùng' : 'mặt trống'}</span>`;
+    }
+    if (isMon(u) && hi.has(i) && pp) {
+      const e = pp.req.effect, a = pp.req.src && isMon(pp.req.src) && side(pp.req.o).grid.includes(pp.req.src) ? pp.req.src : null;
+      if (e.k === 'd') { const d = calcDmg(a, u, e.v, pp.req.ctx || {}); const lost = Math.max(0, d - u.shield); badge = `<span class="sklab dmg">−${lost} ❤${u.shield ? ` · 🛡${Math.min(d, u.shield)}` : ''}${lost >= u.hp ? ' 💥' : ''}</span>`; }
+      else if (e.k === 'loss') badge = `<span class="sklab dmg">−${e.v} ❤${e.v >= u.hp ? ' 💥' : ''}</span>`;
+      else if (e.k === 'h') badge = `<span class="sklab ok">+${Math.min(e.v, u.maxHp - u.hp)} ❤</span>`;
+      else if (e.k === 's') badge = `<span class="sklab ok">+${e.v} 🛡</span>`;
+    }
     if (isMon(u)) {
       const hidden = S.phase === 'place' && o === 'B';
       const drag = o === 'P' && !S.over ? `draggable="true" data-drag='${JSON.stringify({ type: 'cell', i })}'` : '';
       inner = `<div class="unit ${u.st.stun ? 'stunned' : ''}" ${drag} data-view="${o}:${i}">
         <img src="${hidden ? BACK_M : monImg(u.id)}" alt="${esc(M(u).name)}">
-        ${hidden ? '' : tokensHtml(u)}
+        ${hidden ? '' : tokensHtml(u)}${badge}
         ${hidden ? '' : `<div class="ov"><div class="hpbar"><button data-adj="hp-" title="−1 ❤">−</button><span>❤ ${u.hp}/${u.maxHp}</span><button data-adj="hp+" title="+1 ❤">+</button></div><div class="hpline"><i style="width:${Math.max(0, u.hp / u.maxHp * 100)}%"></i></div></div>`}
       </div>`;
     } else if (u && u.kind === 'bld') {
       const b = BLD[u.id];
       const drag = o === 'P' ? `draggable="true" data-drag='${JSON.stringify({ type: 'cell', i })}'` : '';
-      inner = `<div class="unit" ${drag} data-view="${o}:${i}"><img src="${bldImg(u.id)}" alt="${esc(b.name)}">
-        <div class="bldctl">${b.kind === 'house' ? `<button data-adj="cnt-">−</button><span>🎲 ${u.counter}</span><button data-adj="cnt+">+</button>` : `<button data-adj="use">Dùng xe</button>`}</div></div>`;
+      const ctl = b.kind === 'house'
+        ? (u.counter > 0 ? `<button data-adj="cnt-">−</button><span title="xí ngầu trắng: số lần kích hoạt còn lại">🎲 ${u.counter}</span><button data-adj="cnt+">+</button>` : `<span>Làm cảnh</span>`)
+        : b.trigger === 'use' ? `<button data-adj="use">▶ Dùng xe</button>` : `<span title="${esc(b.text_vn)}">🛡 Tự chặn đòn</span>`;
+      inner = `<div class="unit ${b.kind === 'house' && !u.counter ? 'deco' : ''}" ${drag} data-view="${o}:${i}"><img src="${bldImg(u.id)}" alt="${esc(b.name)}"><div class="bldctl">${ctl}</div></div>`;
     } else inner = `<div class="empty-hint">${o === 'P' && (S.phase === 'place' || S.turn === 'P') ? ROW_VI[rowOf(i)] : ''}</div>`;
     return `<div class="${cls.join(' ')}" data-o="${o}" data-i="${i}">${inner}</div>`;
   }).join('');
@@ -673,11 +818,14 @@ function renderTray(animDice) {
   }
   if (S.over) { el.innerHTML = `<span class="note">Ván đã kết thúc.</span><button class="btn primary" data-act="newgame">Ván mới</button>`; return; }
   const o = S.turn, s = side(o);
+  const fieldEls = new Set(monsOf(o).map(i => M(s.grid[i]).element));
   const dice = s.dice.map((d, k) => {
-    const blank = o === 'P' && !d.used && !activators('P', d, s.dice).length;
+    const nomon = !fieldEls.has(d.el);
+    const blank = o === 'P' && !d.used && !nomon && !activators('P', d, s.dice).length;
     const drag = o === 'P' && !d.used ? `draggable="true" data-drag='${JSON.stringify({ type: 'die', di: k })}'` : '';
     const anim = (animDice && d.anim !== false) ? ' rolling' : ''; d.anim = false;
-    return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn thảy lại${blank ? ' (không gán được → +1 ✦ cuối lượt)' : ''}">${dieSvg(d.face, d.el)}<img class="eic" src="${elIcon(d.el)}" alt=""></div>`;
+    const tip = nomon ? 'không có quái cùng màu → +1 ✦ cuối lượt' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
+    return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}<img class="eic" src="${elIcon(d.el)}" alt="">${!d.used && o === 'P' && nomon ? '<span class="dtag">+✦</span>' : ''}</div>`;
   }).join('');
   if (o === 'B') { el.innerHTML = `<span class="note"><b>Máy</b> đang chơi…</span><div class="dice">${dice}</div>`; return; }
   let acts = '';
@@ -689,23 +837,103 @@ function renderTray(animDice) {
   } else {
     const canRe = !s.rerolled && !s.noReroll;
     acts = `<button class="btn" data-act="reroll" ${canRe && !S.busy ? '' : 'disabled'}>Thảy lại viên đã chọn${canRe ? ' (1 lần)' : ''}</button>`;
-    if (!T().noEnergy) acts += `<button class="btn sm" data-act="reroll1" ${s.energy >= 1 && !S.busy ? '' : 'disabled'}>Thảy lại 1 viên · 1 ✦</button>`;
-    if (T().energyActs) acts += `<select class="btn sm" data-act="recolor" ${s.energy >= 3 && !S.busy ? '' : 'disabled'}><option value="">Đổi màu · 3 ✦</option>${EL_ORDER.map(e => `<option value="${e}">→ ${EL_VI[e]}</option>`).join('')}</select>`;
   }
-  acts += `<button class="btn warn" data-act="endturn" ${S.busy ? 'disabled' : ''}>Kết thúc lượt</button>`;
+  acts += `<button class="btn ghost" data-act="hint" ${S.busy ? 'disabled' : ''} title="Trợ lý gợi ý nước đi">💡 Gợi ý</button><button class="btn warn" data-act="endturn" ${S.busy ? 'disabled' : ''}>Kết thúc lượt</button>`;
   el.innerHTML = `<div class="dice">${dice}</div><div class="acts">${acts}</div>`;
 }
 function energyHtml(n) { return `<span class="energy" title="Năng lượng ${n}/3">${[0, 1, 2].map(k => `<img src="${TOK.energy}" class="${k < n ? 'on' : ''}" alt="">`).join('')}</span>`; }
 function renderInfo(o) {
   const s = side(o), sc = scoreOf(o);
-  const ctl = o === 'P' && !T().noEnergy ? `<button class="btn sm" data-energy="-">−</button><button class="btn sm" data-energy="+">+</button>` : '';
-  const extra = o === 'P' && T().energyActs && S.phase === 'play' ? `<button class="btn sm" data-act="shield2" ${s.energy >= 2 && S.turn === 'P' && !S.busy ? '' : 'disabled'}>+2 Khiên · 2 ✦</button>` : '';
   const trophies = s.trophies.map(u => `<img src="${monImg(u.id)}" title="${esc(M(u).name)} · ${M(u).price}🍇" data-view="t:${u.uid}" alt="">`).join('') || '<span class="muted">—</span>';
   const res = o === 'B' ? s.reserve.map(() => `<img src="${BACK_M}" alt="dự bị">`).join('') || '<span class="muted">—</span>' : '';
+  let energy = '';
+  if (!T().noEnergy) {
+    if (o === 'P') {
+      const my = S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over;
+      const acts = energyActions().map(a => `<button class="eact" data-eact="${a.id}" ${my && a.ok ? '' : 'disabled'} title="${esc(a.why || a.d)}"><b>${a.c}✦</b><span>${a.t}${a.tag ? ` <em>${a.tag}</em>` : ''}</span></button>`).join('');
+      energy = `<div class="ebox"><div class="ehead"><b>Năng lượng</b>${energyHtml(s.energy)}<span class="eadj"><button class="btn sm" data-energy="-" title="chỉnh tay">−</button><button class="btn sm" data-energy="+" title="chỉnh tay">+</button></span></div>
+        <small class="muted">Viên không có quái cùng màu +1 · giữ tối đa 3${houseActive('P') ? ' · 🏠 Nhà còn xí ngầu → cuối lượt chỉ giữ 2' : ''}</small><div class="eacts">${acts}</div></div>`;
+    } else energy = `<div class="meters">${energyHtml(s.energy)}</div>`;
+  }
   $('#info' + o).innerHTML = `<div class="who"><h3>${o === 'P' ? 'Bạn' : '🤖 Máy'}</h3><span class="pill">🍇 ${sc.total}</span></div>
-    <div class="meters">${T().noEnergy ? '' : energyHtml(s.energy) + ctl}${extra}</div>
+    ${energy}
     ${o === 'B' ? `<div class="lbl">Dự bị (úp) · ${s.reserve.length}</div><div class="mini-cards">${res}</div>` : ''}
     <div class="lbl">Chiến lợi phẩm (quái đã hạ) · ${sc.ko} 🍇</div><div class="mini-cards">${trophies}</div>`;
+}
+/** Các hành động Năng lượng dạng nút chữ */
+function energyActions() {
+  const s = side('P'), t = T(), rolled = s.rolled, anyDie = s.dice.some(d => !d.used);
+  const A = [
+    { id: 'reroll', c: 1, t: 'Thảy lại 1 xí ngầu', ok: s.energy >= 1 && rolled && anyDie, why: !rolled ? 'Thảy xí ngầu trước' : '' },
+    { id: 'shield', c: 2, t: '+2 Khiên cho 1 quái', ok: s.energy >= 2 && monsOf('P').length > 0 },
+    { id: 'move', c: 2, t: 'Dời 1 quái sang ô trống', tag: 'Chuẩn', ok: t.energyActs && s.energy >= 2 && monsOf('P').length > 0, why: t.energyActs ? '' : `Tầng ${t.name} chưa dùng` },
+    { id: 'recolor', c: 3, t: 'Đổi màu 1 xí ngầu', tag: 'Chuẩn', ok: t.energyActs && s.energy >= 3 && rolled && anyDie && !houseActive('P'), why: !t.energyActs ? `Tầng ${t.name} chưa dùng` : houseActive('P') ? 'Nhà còn xí ngầu: không đổi màu' : '' }
+  ];
+  if (S.buildings) A.push({ id: 'draw', c: 2, t: 'Rút 1 Công trình', tag: 'Mở rộng', ok: s.energy >= 2 && S.bldDeck.length > 0 && !s.drew, why: s.drew ? 'Mỗi lượt rút 1 lá' : '' });
+  return A;
+}
+/** chọn 1 xí ngầu (cho hành động ✦) */
+let diePick = null;
+function pickDie(label) {
+  return new Promise(resolve => {
+    diePick = resolve;
+    banner(`<span>${esc(label)}: chạm 1 xí ngầu</span><button class="btn sm warn" data-diepick="cancel">Hủy</button>`);
+  });
+}
+function endDiePick(v) { const r = diePick; diePick = null; banner(''); if (r) r(v); }
+async function energyAct(id) {
+  const s = side('P'); const a = energyActions().find(x => x.id === id);
+  if (!a || !a.ok || S.busy || S.turn !== 'P') { toast(a && a.why ? a.why : 'Chưa dùng được lúc này.'); return; }
+  if (id === 'reroll') {
+    const sel = s.dice.filter(d => d.sel && !d.used);
+    const d = sel.length === 1 ? sel[0] : await pickDie('1 ✦ · Thảy lại 1 xí ngầu');
+    if (d) rerollSelected(true, d);
+  } else if (id === 'shield') {
+    S.busy = true;
+    const r = await playerChooser({ o: 'P', side: 'P', effect: { k: 's', v: 2, printed: '1 quái mình' }, opts: monsOf('P').map(i => [i]), pick: 1, label: '2 ✦ · +2 Khiên', ctx: {} });
+    S.busy = false; if (r && r.length) { spend('P', 2, `${uName(s.grid[r[0]])} +2 Khiên`); addShield('P', r[0], 2); }
+  } else if (id === 'move') {
+    S.busy = true;
+    const r = await playerChooser({ o: 'P', side: 'P', effect: { k: 'mv', printed: 'quái muốn dời' }, opts: monsOf('P').map(i => [i]), pick: 1, label: '2 ✦ · Dời quái (1/2)', ctx: {} });
+    if (r && r.length) {
+      const empty = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter(i => !s.grid[i]);
+      const r2 = await playerChooser({ o: 'P', side: 'P', effect: { k: 'mv', printed: 'ô trống' }, opts: empty.map(i => [i]), pick: 1, label: '2 ✦ · Dời quái (2/2)', ctx: {} });
+      if (r2 && r2.length) { const u = s.grid[r[0]]; s.grid[r2[0]] = u; s.grid[r[0]] = null; spend('P', 2, `dời ${uName(u)} sang ${ROW_VI[rowOf(r2[0])]}-${colOf(r2[0]) + 1}`); }
+    }
+    S.busy = false;
+  } else if (id === 'recolor') {
+    const sel = s.dice.filter(d => d.sel && !d.used);
+    const d = sel.length === 1 ? sel[0] : await pickDie('3 ✦ · Đổi màu 1 xí ngầu');
+    if (d) {
+      const el = await new Promise(res => { diePick = res; banner(`<span>Đổi viên ${EL_VI[d.el]} ${d.face} thành:</span>${EL_ORDER.filter(e => e !== d.el).map(e => `<button class="btn sm" data-recolor="${e}"><img src="${elIcon(e)}" style="width:16px;vertical-align:-3px" alt=""> ${EL_VI[e]}</button>`).join('')}<button class="btn sm warn" data-diepick="cancel">Hủy</button>`); });
+      if (el) recolorSelected(el, d);
+    }
+  } else if (id === 'draw') {
+    const did = S.bldDeck.pop(); spend('P', 2, `rút Công trình <b>${esc(BLD[did].name)}</b> — kéo vào 1 ô trống`); s.drew = true;
+    s.bldHand.push({ kind: 'bld', uid: UID++, id: did, counter: BLD[did].activations, moved: false, st: {} });
+  }
+  render();
+}
+/** Trợ lý gợi ý */
+function playerHint() {
+  const s = side('P'), tips = [];
+  const canSummon = monsOf('P').length < D.rules.team.on_field && s.reserve.length && !s.summoned && [0, 1, 2, 3, 4, 5, 6, 7, 8].some(i => !s.grid[i]);
+  if (canSummon) { const r = botPickField(s.reserve, 1)[0]; tips.push(`✨ Sân còn chỗ: gọi dự bị (vd. <b>${esc(M(r).name)}</b>) <u>trước</u> khi gán xí ngầu.`); }
+  if (!s.rolled) tips.push('🎲 Bấm <b>Thảy xí ngầu</b>.');
+  else {
+    const plan = planBot(s.dice, 'P');
+    if (plan.length) tips.push('Gán: ' + plan.map(p => `${EL_VI[p.die.el]} ${p.die.face} → <b>${esc(M(p.u).name)}</b> (${esc(p.skill.name)}${p.skill.tier === 'U' ? ' ★' : ''})`).join(' · ') + '. Nên làm kỹ năng Hỗ trợ trước.');
+    const fieldEls = new Set(monsOf('P').map(i => M(s.grid[i]).element));
+    const used = new Set(plan.map(p => p.die));
+    const waste = s.dice.filter(d => !d.used && !used.has(d) && fieldEls.has(d.el));
+    if (waste.length && !s.rerolled && !s.noReroll) tips.push(`Có thể thảy lại: ${waste.map(d => EL_VI[d.el] + ' ' + d.face).join(', ')} (mặt trống).`);
+    const nm = s.dice.filter(d => !d.used && !fieldEls.has(d.el)).length; if (nm) tips.push(`${nm} viên không có quái cùng màu → +${nm} ✦ cuối lượt.`);
+    if (!plan.length && !waste.length) tips.push('Không còn viên gán được → <b>Kết thúc lượt</b>.');
+  }
+  const low = monsOf('P').map(i => s.grid[i]).filter(u => u.hp + u.shield <= 3);
+  if (low.length && s.energy >= 2) tips.push(`🛡 ${low.map(u => esc(M(u).name)).join(', ')} sắp bị hạ: cân nhắc 2 ✦ +2 Khiên.`);
+  const msg = tips.join('<br>');
+  log('💡 ' + msg, 'P', 'hint'); toast(msg);
 }
 function renderHand() {
   const s = side('P');
@@ -715,7 +943,7 @@ function renderHand() {
     $('#bldArea').innerHTML = `<h3 style="margin-top:8px">Công trình & Xe <small>(mở rộng)</small></h3>
       <div class="handcards">${s.bldHand.map(b => `<div class="hcard" draggable="true" data-drag='${JSON.stringify({ type: 'bld', uid: b.uid })}' data-bldh="${b.uid}" data-view="b:${b.uid}"><img src="${bldImg(b.id)}" alt="${esc(BLD[b.id].name)}"></div>`).join('')}
       <div class="hcard back" title="Chồng Công trình: ${deck} lá"><img src="${BACK_B}" alt=""></div></div>
-      <button class="btn sm" data-act="drawbld" ${deck && s.energy >= 2 && S.turn === 'P' && S.phase === 'play' && !S.busy ? '' : 'disabled'}>Rút Công trình · 2 ✦</button>`;
+      <button class="btn sm" data-eact="draw" ${deck && s.energy >= 2 && !s.drew && S.turn === 'P' && S.phase === 'play' && !S.busy ? '' : 'disabled'}>Rút Công trình · 2 ✦</button>`;
   } else $('#bldArea').innerHTML = '';
 }
 function findView(key) {
@@ -726,9 +954,13 @@ function findView(key) {
 }
 function renderViewer() {
   const v = findView(viewSel), el = $('#viewer');
-  if (!v) { el.innerHTML = '<p class="muted">Rê chuột / chạm vào một thẻ để xem lớn. Mỗi ô có nút −/+ ❤; chi tiết Khiên & trạng thái chỉnh ở đây.</p>'; return; }
+  if (!v) { el.innerHTML = '<p class="muted">Rê chuột / chạm vào một thẻ để xem lớn. Mỗi ô có nút −/+ ❤; Khiên, trạng thái và nút chạy Nội tại / Ngưỡng ở đây.</p>'; return; }
   const u = v.u;
-  if (u.kind === 'bld') { const b = BLD[u.id]; el.innerHTML = `<img class="big" src="${bldImg(u.id)}" alt=""><p><b>${esc(b.name)}</b> · ${b.kind === 'house' ? 'Nhà' : 'Xe'} — ${esc(b.text_vn)}</p>`; return; }
+  if (u.kind === 'bld') {
+    const b = BLD[u.id];
+    const ctl = v.o === 'P' ? (b.kind === 'house' ? (u.counter > 0 ? `<p>🎲 còn ${u.counter} lần · tự kích hoạt ${b.trigger === 'start' ? 'Đầu' : 'Cuối'} lượt bạn. <button class="btn sm" data-vadj="house">▶ Chạy ngay</button></p>` : '<p>Hết xí ngầu → làm cảnh (không tính vào giới hạn 2 Nhà).</p>') : b.trigger === 'use' ? `<p>Đi 1 ô miễn phí mỗi lượt (kéo sang ô kề). <button class="btn sm primary" data-vadj="use">▶ Dùng xe</button> — xe rời sân sau khi hiệu ứng xong.</p>` : '<p>Tự chặn 1 đòn đơn của đối thủ vào đồng đội kề xe, rồi rời sân.</p>') : '';
+    el.innerHTML = `<img class="big" src="${bldImg(u.id)}" alt=""><p><b>${esc(b.name)}</b> · ${b.kind === 'house' ? 'Nhà' : 'Xe'} — ${esc(b.text_vn)}</p>${ctl}`; return;
+  }
   const hidden = v.o === 'B' && S.phase === 'place';
   if (hidden) { el.innerHTML = `<img class="big" src="${BACK_M}" alt="">`; return; }
   const m = M(u);
@@ -738,15 +970,28 @@ function renderViewer() {
       <b>Khiên</b><div class="row"><button class="btn sm" data-vadj="sh-">−</button><b>${u.shield}</b><button class="btn sm" data-vadj="sh+">+</button></div>
       <b>Trạng thái</b><div class="row">${ST_KEYS.map(k => `<button class="btn sm" data-vadj="st:${k}" style="${u.st[k] ? 'background:var(--sunlt)' : ''}"><img src="${TOK[k]}" style="width:14px;vertical-align:-2px" alt="">${ST_VI[k]}</button>`).join('')}</div></div>`;
   }
+  // dòng đặc biệt: nội tại, ngưỡng, di nguyện, đặc tính
+  const sp = [], run = (a, t) => v.o ? `<button class="btn sm" data-vadj="${a}">▶ ${t}</button>` : '';
+  const AUTO = '<em class="auto">tự động</em>';
+  if (m.passive) { const k = m.passive.key; sp.push(`<li><b>Nội tại · ${esc(m.passive.name)}</b> ${AUTO} — ${esc(m.passive.text)} ${k === 'regenAlly' || k === 'photo' ? run('run:pas', 'Chạy') : '<small>(luôn có hiệu lực, tính khi đánh / bị đánh)</small>'}</li>`); }
+  if (m.trait_top) { const t = m.trait_top; sp.push(`<li><b>Đặc tính · ${esc(t.n)}</b> ${AUTO} — ${esc(t.text)} ${run('run:top', 'Chạy')}</li>`); }
+  if (m.threshold) sp.push(`<li><b>Ngưỡng ≤${m.threshold.at} ❤ · ${esc(m.threshold.name)}</b> ${AUTO} — mỗi lần ❤ tụt xuống ≤${m.threshold.at}: ${m.threshold.effects.map(e => esc(fxText(e))).join(', ')} ${run('run:thr', 'Chạy')}</li>`);
+  if (m.deathwish) sp.push(`<li><b>Di nguyện · ${esc(m.deathwish.name)}</b> ${AUTO} — khi bị hạ: ${m.deathwish.effects.map(e => esc(fxText(e))).join(', ')}</li>`);
+  if (m.trait_bot) { const t = m.trait_bot; sp.push(`<li><b>Đặc tính · ${esc(t.n)}</b> ${t.k === 'gifted' ? (u.giftUsed ? '<em class="auto">đã dùng</em>' : '<em class="auto">hỏi khi gán xí ngầu</em>') : AUTO} — ${esc(t.text)} ${t.k === 'gifted' && v.o ? run('gift', u.giftUsed ? 'Đánh dấu chưa dùng' : 'Đánh dấu đã dùng') : ''}</li>`); }
   el.innerHTML = `<img class="big" src="${monImg(u.id)}" alt="${esc(m.name)}">
-    <p style="margin:0 0 6px"><b>${esc(m.name)}</b> · ${EL_VI[m.element]} · ${esc(m.role5)} · ${m.price} 🍇${u.acted ? ' · <i>đã kích hoạt lượt này</i>' : ''}</p>${ctl}`;
+    <p style="margin:0 0 6px"><b>${esc(m.name)}</b> · ${EL_VI[m.element]} · ${esc(m.role5)} · ${m.price} 🍇${u.acted ? ' · <i>đã kích hoạt lượt này</i>' : ''}</p>${sp.length ? `<ul class="special">${sp.join('')}</ul>` : ''}${ctl}`;
 }
+const TG_VI = { one: '1 địch', other: '1 địch khác', anyE: '1 địch bất kỳ', adjE: 'địch kề', three: '3 địch', row: '1 hàng', col: '1 cột', cross: 'đánh lan', all: 'cả sân địch', self: 'mình', ally: '1 đồng đội', front: '1 đồng đội hàng trước', adj: 'đồng đội kề', selfadj: 'mình + kề', team: 'cả đội', deadA: '1 đồng đội bị hạ' };
+function fxText(e) { const t = e.printed || TG_VI[e.t] || ''; return ({ d: `⚔${e.v} → ${t}`, h: `+${e.v}❤ → ${t}`, s: `+${e.v} Khiên → ${t}`, st: `${e.v} → ${t}`, bf: `${e.v} → ${t}`, rev: `hồi sinh ${e.v}❤ → ${t}` })[e.k] || t; }
 
 /* ================= sự kiện ================= */
 function bindUI() {
   document.addEventListener('click', e => {
     const t = e.target;
     if (t.closest('[data-close]')) { closeModal(); return; }
+    const dp = t.closest('[data-diepick]'); if (dp) { endDiePick(null); return; }
+    const rc = t.closest('[data-recolor]'); if (rc) { endDiePick(rc.dataset.recolor); return; }
+    const ea = t.closest('[data-eact]'); if (ea) { energyAct(ea.dataset.eact); return; }
     const pk = t.closest('[data-pick]');
     if (pk && pendingPick) { if (pk.dataset.pick === 'skip') finishPick([]); else finishPick(pendingPick.chosen.slice()); return; }
     const act = t.closest('[data-act]'); if (act && act.tagName !== 'SELECT') { doAct(act.dataset.act); return; }
@@ -754,6 +999,7 @@ function bindUI() {
     const vadj = t.closest('[data-vadj]'); if (vadj) { const v = findView(viewSel); if (v && v.o) adjust(v.o, v.i, vadj.dataset.vadj); return; }
     const en = t.closest('[data-energy]'); if (en) { const s = side('P'); s.energy = Math.max(0, Math.min(3, s.energy + (en.dataset.energy === '+' ? 1 : -1))); render(); return; }
     const dieEl = t.closest('[data-die]');
+    if (dieEl && S && S.turn === 'P' && diePick) { const d = side('P').dice[+dieEl.dataset.die]; if (d && !d.used) endDiePick(d); return; }
     if (dieEl && S && S.turn === 'P') { const d = side('P').dice[+dieEl.dataset.die]; if (d && !d.used) { d.sel = !d.sel; picked = d.sel ? { type: 'die', di: +dieEl.dataset.die } : null; render(); } return; }
     const cell = t.closest('.cell');
     if (cell && S) {
@@ -779,11 +1025,16 @@ function bindUI() {
     const rc = e.target.closest('[data-act="recolor"]'); if (rc && rc.value) recolorSelected(rc.value);
   });
   document.addEventListener('mouseover', e => {
-    const v = e.target.closest('[data-view]'); if (!v || !S || v.dataset.view === viewSel) return;
+    if (!S) return;
+    const de = e.target.closest('[data-die]'), hd = de ? +de.dataset.die : null;
+    if (hd !== S.hoverDie && S.turn === 'P') { S.hoverDie = hd; renderGrid('P'); }
+    const v = e.target.closest('[data-view]'); if (!v || v.dataset.view === viewSel) return;
     viewSel = v.dataset.view; renderViewer();
   });
   $('#btnNew').onclick = () => setupModal();
   $('#btnRules').onclick = () => rulesModal();
+  $('#btnEnd').onclick = () => endSession();
+  setInterval(() => { if (S && S.phase === 'play' && !S.over) renderStatus(); }, 1000);
   $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && S && S.phase !== 'setup') closeModal(); });
   $('#wheel').addEventListener('dblclick', () => $('#wheel').classList.toggle('min'));
 }
@@ -791,24 +1042,42 @@ function doAct(a) {
   switch (a) {
     case 'roll': if (!S.busy) rollPlayer(); break;
     case 'reroll': rerollSelected(false); break;
-    case 'reroll1': rerollSelected(true); break;
     case 'endturn': endPlayerTurn(); break;
+    case 'hint': playerHint(); break;
     case 'ready': startGame(); break;
     case 'newgame': closeModal(); setupModal(); break;
-    case 'shield2': {
-      const s = side('P'); if (s.energy < 2) return;
-      S.busy = true;
-      playerChooser({ o: 'P', side: 'P', effect: { k: 's', v: 2, printed: '1 quái mình' }, opts: monsOf('P').map(i => [i]), pick: 1, label: 'Năng lượng', ctx: {} }).then(r => {
-        S.busy = false; if (r && r.length) { s.energy -= 2; addShield('P', r[0], 2); log(`Bạn trả 2 ✦: ${uName(s.grid[r[0]])} +2 Khiên`, 'P'); } render();
-      });
-      break;
-    }
-    case 'drawbld': {
-      const s = side('P'); if (s.energy < 2 || !S.bldDeck.length) return;
-      s.energy -= 2; const id = S.bldDeck.pop(); s.bldHand.push({ kind: 'bld', uid: UID++, id, counter: BLD[id].activations, moved: false });
-      log(`Bạn trả 2 ✦ rút Công trình <b>${esc(BLD[id].name)}</b>`, 'P'); render(); break;
-    }
+    case 'dlstats': download('karian-stats.json', loadStats()); break;
   }
+}
+/* ================= số liệu & phiên ================= */
+const STATS_KEY = 'karian_stats_v7';
+function loadStats() { try { return JSON.parse(localStorage.getItem(STATS_KEY) || '[]'); } catch (_) { return []; } }
+function saveStats(res, reason, p, b) {
+  S.endTime = Date.now();
+  const rec = { date: new Date().toISOString(), tier: S.tier, first: S.first, result: res, reason, rounds: Math.min(S.round, S.maxRounds), turns: S.turnCount, seconds: Math.round((S.endTime - S.startTime) / 1000),
+    score: { P: p, B: b }, energy: { P: S.stats.P, B: S.stats.B }, teams: S.teams };
+  try { const all = loadStats(); all.push(rec); localStorage.setItem(STATS_KEY, JSON.stringify(all.slice(-200))); } catch (_) { /* bộ nhớ trình duyệt bị chặn */ }
+}
+function download(name, obj) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+function snapshot() {
+  if (!S) return null;
+  const sd = o => { const s = side(o); return { energy: s.energy, grid: s.grid.map(x => x ? (x.kind === 'mon' ? { id: x.id, hp: x.hp, shield: x.shield, st: Object.keys(x.st) } : { bld: x.id, counter: x.counter }) : null), reserve: s.reserve.map(u => u.id), dead: s.dead.map(u => u.id), trophies: s.trophies.map(u => u.id), dice: s.dice } };
+  return { tier: S.tier, phase: S.phase, round: S.round, turn: S.turn, step: S.step, busy: S.busy, over: S.over, pending: pendingPick ? { label: pendingPick.req.label, effect: pendingPick.req.effect } : null, P: sd('P'), B: sd('B') };
+}
+/** Nút Kết thúc phiên: luôn hiện, dừng mọi xử lý, lưu nhật ký lỗi + trạng thái bàn */
+function endSession() {
+  if (!confirm('Kết thúc phiên: dừng ván hiện tại và tải nhật ký lỗi (bước cuối, trạng thái bàn)?')) return;
+  const report = { app: "Karian's Summoner v7.0", at: new Date().toISOString(), lastStep: S ? STEPS.find(x => x.n === S.step) : null, state: snapshot(), errors: ERRORS,
+    log: [...document.querySelectorAll('#log li')].map(l => l.textContent), stats: loadStats() };
+  if (S) { S.over = true; S.busy = false; S.aborted = true; }
+  if (pendingPick) { const p = pendingPick; pendingPick = null; p.resolve([]); }
+  if (diePick) endDiePick(null);
+  banner('');
+  download(`karian-session-${Date.now()}.json`, report);
+  render();
+  openModal(`<h2>Đã kết thúc phiên</h2><p>Đã dừng mọi xử lý và tải file <code>karian-session-*.json</code> (nhật ký, trạng thái bàn, lỗi: ${ERRORS.length}). Gửi file này cho Claude để tra nguyên nhân nếu ván bị treo.</p><div class="foot"><button class="btn" data-close>Đóng</button><button class="btn primary" data-act="newgame">Ván mới</button></div>`);
 }
 
 /* ================= modal: thiết lập ván ================= */
@@ -882,8 +1151,9 @@ function newGame(st) {
   else { pIds = st.picks.slice(); bIds = botDraft(st.draft.B); bName = 'Draft'; }
   const mkSide = ids => ({ grid: Array(9).fill(null), reserve: ids.map(mkUnit), dead: [], exiled: [], trophies: [], energy: 0, dice: [], rolled: false, bldHand: [], bldUsed: [] });
   S = { tier, phase: 'place', round: 1, maxRounds: D.rules.modes['1v1'].rounds, turn: 'P', first: st.first === 'random' ? (Math.random() < 0.5 ? 'P' : 'B') : st.first,
-    sides: { P: mkSide(pIds), B: mkSide(bIds) }, over: false, busy: false, firstTurn: true, buildings: tier === 'standard' && st.buildings, bldDeck: shuffle(D.buildings.map(b => b.id)), chooseColors: 0, colorPick: [] };
-  viewSel = null; picked = null; pendingPick = null; banner('');
+    sides: { P: mkSide(pIds), B: mkSide(bIds) }, over: false, busy: false, firstTurn: true, step: 0, turnCount: 0, startTime: Date.now(), hoverDie: null,
+    stats: { P: { gained: 0, spent: 0, blds: [] }, B: { gained: 0, spent: 0, blds: [] } }, teams: { P: pIds.slice(), B: bIds.slice() }, buildings: tier === 'standard' && st.buildings, bldDeck: shuffle(D.buildings.map(b => b.id)), chooseColors: 0, colorPick: [] };
+  viewSel = null; picked = null; pendingPick = null; diePick = null; banner('');
   $('#log').innerHTML = '';
   log(`Ván mới · tầng <b>${TIERS[tier].name}</b>. Máy dùng: <b>${esc(bName)}</b>.`, null, 't');
   // Máy đặt quân úp
@@ -899,7 +1169,8 @@ function startGame() {
   if (S.tier === 'van0') { P.reserve = []; side('B').reserve = []; }
   S.phase = 'play'; S.turn = S.first;
   const second = foe(S.first);
-  if (!T().noEnergy) side(second).energy = 1;
+  if (!T().noEnergy) { side(second).energy = 1; S.stats[second].gained += 1; }
+  S.startTime = Date.now();
   log(`Lật thẻ! ${who(S.first)} đi trước${T().noEnergy ? '' : `; ${who(second)} +1 ✦`}.`, null);
   ['P', 'B'].forEach(o => monsOf(o).forEach(i => log(`${who(o)}: ${uName(side(o).grid[i])} ở ${ROW_VI[rowOf(i)]}-${colOf(i) + 1}`, o)));
   beginTurn();
