@@ -8,13 +8,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Be+Vietnam+Pro:wght@500;600;700&display=swap" rel="stylesheet">
 <!-- ?v=… : đổi số mỗi lần cập nhật để trình duyệt tải file mới, không dùng bản cũ trong bộ nhớ đệm -->
-<link rel="stylesheet" href="style.css?v=7.3.1">
+<link rel="stylesheet" href="style.css?v=7.4.0">
 </head>
 <body>
 <header class="topbar">
   <div class="brand"><img src="assets/icons/Fruit.webp" alt=""><span>Karian's Summoner<small>Bàn chơi ảo v7.0 · 1v1 với Máy</small></span></div>
   <div class="status" id="status"></div>
   <div class="tools">
+    <button class="btn ghost" id="btnLog" type="button" title="Ẩn / hiện nhật ký">📜 Ẩn nhật ký</button>
     <button class="btn ghost" id="btnRules" type="button">Luật nhanh</button>
     <button class="btn ghost" id="btnNew" type="button">Ván mới</button>
     <button class="btn warn" id="btnEnd" type="button" title="Dừng mọi xử lý và tải nhật ký lỗi">Kết thúc phiên</button>
@@ -22,8 +23,8 @@
 </header>
 
 <main class="layout">
-  <!-- Cột 1: nhật ký (cao hết màn hình) -->
-  <aside class="col col-log">
+  <!-- Cột 1: nhật ký (ẩn/hiện bằng nút trên thanh trên cùng) -->
+  <aside class="col col-log" id="colLog">
     <section class="logbox"><h3>Nhật ký</h3><ol id="log"></ol></section>
   </aside>
 
@@ -33,22 +34,22 @@
     <section class="steps" id="steps" aria-label="Thứ tự lượt chơi"></section>
   </aside>
 
-  <!-- Cột 3: khay xí ngầu (dọc) -->
-  <section class="tray" id="tray"></section>
-
-  <!-- Cột 4: sân đấu — 1 sân liền, Máy ở trên, Bạn ở dưới -->
-  <section class="field" id="field">
-    <span class="ftag ftagB">🤖 Máy</span>
+  <!-- Bàn cờ 5 × 7 đứng riêng giữa rừng:
+       hàng 1–3 sân Máy · hàng 4 xí ngầu (+ nút Thảy / Kết thúc lượt hai bên) · hàng 5–7 sân Bạn
+       góc dưới trái: Gợi ý · góc dưới phải: vòng khắc hệ -->
+  <section class="board" id="board">
+    <span class="btag btagB">🤖 Máy</span>
     <div class="grid gridB" id="gridB"></div>
-    <div class="midline"></div>
+    <div class="bslot slot-roll" id="slotRoll"></div>
+    <div class="dicebar" id="tray"></div>
+    <div class="bslot slot-end" id="slotEnd"></div>
+    <span class="btag btagP">Bạn</span>
     <div class="grid gridP" id="gridP"></div>
-    <span class="ftag ftagP">Bạn</span>
+    <div class="bslot slot-hint" id="slotHint"></div>
+    <div class="wheel" id="wheel" title="Vòng khắc hệ: A → B nghĩa là A khắc B (+1 sát thương), bị khắc −1 (tối thiểu 1)"></div>
   </section>
 
-  <!-- Cột 5: xem thẻ lớn -->
-  <section class="viewer" id="viewer"><p class="muted">Rê chuột / chạm vào một quái để xem thẻ.</p></section>
-
-  <!-- Cột 6: Bạn (năng lượng, chồng Công trình), vách che, vòng khắc hệ -->
+  <!-- Cột 4: Bạn (năng lượng, chồng Công trình) + vách che -->
   <aside class="col col-right">
     <section class="side-info" id="infoP"></section>
     <section class="hand">
@@ -56,9 +57,11 @@
       <div class="handcards" id="hand"></div>
       <div id="bldArea"></div>
     </section>
-    <section class="wheel" id="wheel" title="Vòng khắc hệ: A → B nghĩa là A khắc B (+1 sát thương), bị khắc −1 (tối thiểu 1)"></section>
   </aside>
 </main>
+
+<!-- thẻ lớn: chỉ hiện khi trỏ vào quái / thẻ; bấm để ghim -->
+<section class="viewer cardpop" id="viewer" hidden></section>
 
 
 <!-- dải sáng khi chọn mục tiêu (năng lượng / kỹ năng) -->
@@ -67,6 +70,6 @@
 <div class="toast" id="toast" hidden></div>
 <div class="modal" id="modal" hidden><div class="modal-card" id="modalCard"></div></div>
 
-<script src="script.js?v=7.3.1"></script>
+<script src="script.js?v=7.4.0"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '7.3.1';   // trùng với ?v= trong index.html
+const APP_VER = '7.4.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -821,6 +821,7 @@ function dropOn(o, i, data) {
 function bindDnD() {
   document.addEventListener('dragstart', e => {
     const t = e.target.closest('[data-drag]'); if (!t) return;
+    viewPin = false; hideViewer(true);
     e.dataTransfer.setData('text/plain', t.dataset.drag); e.dataTransfer.effectAllowed = 'move';
   });
   document.addEventListener('dragover', e => { const c = e.target.closest('.cell'); if (c) { e.preventDefault(); c.classList.add('over'); } });
@@ -946,13 +947,16 @@ function renderGrid(o) {
     return `<div class="${cls.join(' ')}" data-o="${o}" data-i="${i}"${f ? ` style="--fxd:-${Math.round(f.el)}ms"` : ''}>${inner}</div>`;
   }).join('');
 }
+/** Hàng xí ngầu giữa bàn + 3 ô nút trên bàn (Thảy / Kết thúc lượt / Gợi ý) */
 function renderTray(animDice) {
-  const el = $('#tray');
+  const el = $('#tray'), sR = $('#slotRoll'), sE = $('#slotEnd'), sH = $('#slotHint');
+  const btn = (act, ico, txt, cls, on, tip) => `<button class="btn ${cls}" data-act="${act}" ${on ? '' : 'disabled'} ${tip ? `title="${esc(tip)}"` : ''}><b>${ico}</b>${txt}</button>`;
+  sH.innerHTML = btn('hint', '💡', 'Gợi ý', 'ghost', S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over, 'Trợ lý gợi ý nước đi');
   if (S.phase === 'place') {
-    el.innerHTML = `<span class="note">Kéo ${D.rules.team.on_field} quái từ <b>vách che</b> vào nửa sân dưới.</span>
-      <button class="btn primary tall" data-act="ready">Sẵn sàng<br>Lật thẻ</button>`; return;
+    el.innerHTML = `<span class="note">Kéo ${D.rules.team.on_field} quái từ <b>vách che</b> vào sân của bạn (3 hàng dưới).</span>`;
+    sR.innerHTML = ''; sE.innerHTML = btn('ready', '✔', 'Sẵn sàng', 'primary', true, 'Lật thẻ — hai bên lật cùng lúc'); return;
   }
-  if (S.over) { el.innerHTML = `<span class="note">Hết ván</span><button class="btn primary tall" data-act="newgame">Ván mới</button>`; return; }
+  if (S.over) { el.innerHTML = `<span class="note"><b>Hết ván</b></span>`; sR.innerHTML = ''; sE.innerHTML = btn('newgame', '↺', 'Ván mới', 'primary', true); return; }
   const o = S.turn, s = side(o);
   const fieldEls = new Set(monsOf(o).map(i => M(s.grid[i]).element));
   const dice = s.dice.map((d, k) => {
@@ -960,22 +964,22 @@ function renderTray(animDice) {
     const blank = o === 'P' && !d.used && !nomon && !activators('P', d, s.dice).length;
     const drag = o === 'P' && !d.used ? `draggable="true" data-drag='${JSON.stringify({ type: 'die', di: k })}'` : '';
     const anim = (animDice && d.anim !== false) ? ' rolling' : ''; d.anim = false;
-    const tip = nomon ? 'không có quái cùng màu → +1 ✦ cuối lượt' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
+    const tip = d.toE ? 'đã thành ✦' : nomon ? 'không có quái cùng màu → thành ✦ khi bạn bắt đầu gán' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
     return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}<img class="eic" src="${elIcon(d.el)}" alt="">${d.toE ? '<span class="dtag">✦</span>' : (!d.used && o === 'P' && nomon ? '<span class="dtag">+✦</span>' : '')}</div>`;
   }).join('');
-  if (o === 'B') { el.innerHTML = `<span class="note"><b>Máy</b><br>đang chơi…</span><div class="dice">${dice}</div>`; return; }
-  let acts = '';
+  const myTurn = o === 'P' && !S.busy;
+  sE.innerHTML = btn('endturn', '⏭', 'Kết thúc lượt', 'warn', myTurn);
+  if (o === 'B') { el.innerHTML = s.dice.length ? `<div class="dice">${dice}</div>` : `<span class="note"><b>Máy</b> đang chơi…</span>`; sR.innerHTML = btn('roll', '🎲', 'Thảy', 'primary', false); return; }
   if (!s.rolled) {
-    if (S.chooseColors) {
-      acts = `<span class="note">Lượt đầu: chọn <b>${S.chooseColors} màu</b></span><div class="colorpick">${EL_ORDER.map(e => `<label title="${EL_VI[e]}"><input type="checkbox" data-color="${e}" ${S.colorPick.includes(e) ? 'checked' : ''}><img src="${elIcon(e)}" alt="${EL_VI[e]}"></label>`).join('')}</div>`;
-    }
-    acts += `<button class="btn primary tall" data-act="roll" ${S.busy ? 'disabled' : ''}>🎲<br>Thảy</button>`;
+    el.innerHTML = S.chooseColors
+      ? `<span class="note">Lượt đầu: chọn <b>${S.chooseColors} màu</b>, không thảy lại</span><div class="colorpick">${EL_ORDER.map(e => `<label title="${EL_VI[e]}"><input type="checkbox" data-color="${e}" ${S.colorPick.includes(e) ? 'checked' : ''}><img src="${elIcon(e)}" alt="${EL_VI[e]}"></label>`).join('')}</div>`
+      : `<span class="note">Gọi dự bị trước (nếu sân còn chỗ), rồi bấm <b>Thảy</b> ←</span>`;
+    sR.innerHTML = btn('roll', '🎲', 'Thảy', 'primary', myTurn);
   } else {
     const canRe = !s.rerolled && !s.noReroll;
-    acts = `<button class="btn tall" data-act="reroll" ${canRe && !S.busy ? '' : 'disabled'} title="Chạm chọn các viên rồi bấm để thảy lại (1 lần mỗi lượt)">↻<br>Thảy lại</button>`;
+    el.innerHTML = `<div class="dice">${dice}</div>`;
+    sR.innerHTML = btn('reroll', '↻', 'Thảy lại', '', myTurn && canRe, 'Chạm chọn các viên rồi bấm để thảy lại (1 lần mỗi lượt)');
   }
-  acts += `<button class="btn ghost tall" data-act="hint" ${S.busy ? 'disabled' : ''} title="Trợ lý gợi ý nước đi">💡<br>Gợi ý</button><button class="btn warn tall" data-act="endturn" ${S.busy ? 'disabled' : ''}>Kết thúc<br>lượt</button>`;
-  el.innerHTML = `<div class="dice">${dice}</div><div class="acts">${acts}</div>`;
 }
 function energyHtml(n) { return `<span class="energy" title="Năng lượng ${n}/3">${[0, 1, 2].map(k => `<img src="${TOK.energy}" class="${k < n ? 'on' : ''}" alt="">`).join('')}</span>`; }
 function renderInfo(o) {
@@ -1133,9 +1137,37 @@ function findView(key) {
   const uid = +b, all = ['P', 'B'].flatMap(o => [...side(o).reserve, ...side(o).trophies, ...side(o).bldHand]);
   const u = all.find(x => x.uid === uid); return u ? { u } : null;
 }
+/* thẻ lớn: hiện khi trỏ chuột vào quái / thẻ, ẩn khi rời đi; bấm vào quái để ghim (hiện nút chỉnh ❤, Khiên, trạng thái) */
+let viewPin = false, viewAnchor = null, viewHideT = 0;
+function showViewer(key, anchor) {
+  clearTimeout(viewHideT);
+  if (key !== viewSel || $('#viewer').hidden) { viewSel = key; viewAnchor = anchor || viewAnchor; renderViewer(); }
+}
+function hideViewer(force) {
+  if (viewPin && !force) return;
+  clearTimeout(viewHideT);
+  viewHideT = setTimeout(() => { if (!viewPin || force) { viewPin = false; $('#viewer').hidden = true; $('#viewer').classList.remove('pinned'); } }, force ? 0 : 160);
+}
+function placeViewer() {
+  const el = $('#viewer'), b = $('#board').getBoundingClientRect(), W = el.offsetWidth || 290, Hh = el.offsetHeight || 420;
+  if (innerWidth <= 1100) return;
+  const a = viewAnchor && viewAnchor.getBoundingClientRect ? viewAnchor.getBoundingClientRect() : b;
+  const inBoard = a.left >= b.left - 2 && a.right <= b.right + 2;
+  let left = inBoard ? b.right + 14 : a.left - W - 14;
+  if (left + W > innerWidth - 8) left = b.left - W - 14;
+  if (left < 8) left = 8;
+  const top = Math.max(70, Math.min(a.top - 30, innerHeight - Hh - 10));
+  el.style.left = left + 'px'; el.style.top = top + 'px';
+}
 function renderViewer() {
   const v = findView(viewSel), el = $('#viewer');
-  if (!v) { el.innerHTML = '<p class="muted">Rê chuột / chạm vào một thẻ để xem lớn. Mỗi ô có nút −/+ ❤; Khiên, trạng thái và nút chạy Nội tại / Ngưỡng ở đây.</p>'; return; }
+  if (!v) { el.hidden = true; return; }
+  el.hidden = false; el.classList.toggle('pinned', viewPin);
+  renderViewerInner(v, el);
+  if (viewPin) el.insertAdjacentHTML('afterbegin', '<button class="btn sm pin" data-unpin title="Đóng">✕</button>');
+  placeViewer();
+}
+function renderViewerInner(v, el) {
   const u = v.u;
   if (u.kind === 'bld') {
     const b = BLD[u.id];
@@ -1170,6 +1202,7 @@ function bindUI() {
   document.addEventListener('click', e => {
     const t = e.target;
     if (t.closest('[data-close]')) { closeModal(); return; }
+    if (t.closest('[data-unpin]')) { viewPin = false; hideViewer(true); return; }
     const dp = t.closest('[data-diepick]'); if (dp) { endDiePick(null); return; }
     const rc = t.closest('[data-recolor]'); if (rc) { endDiePick(rc.dataset.recolor); return; }
     const ea = t.closest('[data-eact]'); if (ea) { energyAct(ea.dataset.eact, ea); return; }
@@ -1189,7 +1222,7 @@ function bindUI() {
     if (cell && S) {
       const o = cell.dataset.o, i = +cell.dataset.i;
       if (pendingPick) { onPickCell(o, i); return; }
-      viewSel = side(o).grid[i] ? `${o}:${i}` : viewSel;
+      if (side(o).grid[i] && !(S.phase === 'place' && o === 'B')) { viewPin = true; viewSel = `${o}:${i}`; viewAnchor = cell; renderViewer(); }
       if (picked) {
         const pk2 = picked;
         if (pk2.type === 'die') { side('P').dice.forEach(d => (d.sel = false)); picked = null; dropOn(o, i, pk2); return; }
@@ -1201,7 +1234,8 @@ function bindUI() {
     }
     const res = t.closest('[data-res]'); if (res) { const uid = +res.dataset.res; picked = picked && picked.uid === uid ? null : { type: 'res', uid }; viewSel = 'r:' + uid; render(); return; }
     const bh = t.closest('[data-bldh]'); if (bh) { const uid = +bh.dataset.bldh; picked = { type: 'bld', uid }; viewSel = 'b:' + uid; render(); return; }
-    const view = t.closest('[data-view]'); if (view) { viewSel = view.dataset.view; renderViewer(); }
+    const view = t.closest('[data-view]'); if (view) { viewPin = true; viewSel = view.dataset.view; viewAnchor = view; renderViewer(); return; }
+    if (viewPin && !t.closest('#viewer') && !t.closest('.cell')) { viewPin = false; hideViewer(true); }
   });
   document.addEventListener('change', e => {
     const c = e.target.closest('[data-color]');
@@ -1215,11 +1249,17 @@ function bindUI() {
     document.querySelectorAll('.cell.pulled').forEach(c => c.classList.remove('pulled'));
     const cov = e.target.closest('.cell.covered');
     if (cov) adjIdx(+cov.dataset.i).forEach(j => { const c = document.querySelector(`.cell.taunt-up[data-o="${cov.dataset.o}"][data-i="${j}"]`); if (c) c.classList.add('pulled'); });
-    const v = e.target.closest('[data-view]'); if (!v || v.dataset.view === viewSel) return;
-    viewSel = v.dataset.view; renderViewer();
+    const v = e.target.closest('[data-view]');
+    if (v && !viewPin) showViewer(v.dataset.view, v);
+    else if (!v && !e.target.closest('#viewer')) hideViewer();
   });
   $('#btnNew').onclick = () => setupModal();
   $('#btnRules').onclick = () => rulesModal();
+  const setLog = hide => { document.body.classList.toggle('nolog', hide); $('#btnLog').textContent = hide ? '📜 Hiện nhật ký' : '📜 Ẩn nhật ký'; try { localStorage.setItem('karian_nolog', hide ? '1' : ''); } catch (_) { } };
+  let hideLog = false; try { hideLog = localStorage.getItem('karian_nolog') === '1'; } catch (_) { }
+  setLog(hideLog);
+  $('#btnLog').onclick = () => setLog(!document.body.classList.contains('nolog'));
+  addEventListener('resize', () => { if (!$('#viewer').hidden) placeViewer(); });
   $('#btnEnd').onclick = () => endSession();
   setInterval(() => { if (S && S.phase === 'play' && !S.over) renderStatus(); }, 1000);
   $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && S && S.phase !== 'setup') closeModal(); });
@@ -1339,7 +1379,7 @@ function newGame(st) {
   S = { tier, phase: 'place', round: 1, maxRounds: D.rules.modes['1v1'].rounds, turn: 'P', first: st.first === 'random' ? (Math.random() < 0.5 ? 'P' : 'B') : st.first,
     sides: { P: mkSide(pIds), B: mkSide(bIds) }, over: false, busy: false, firstTurn: true, step: 0, turnCount: 0, startTime: Date.now(), hoverDie: null,
     stats: { P: { gained: 0, spent: 0, blds: [] }, B: { gained: 0, spent: 0, blds: [] } }, teams: { P: pIds.slice(), B: bIds.slice() }, buildings: tier === 'standard' && st.buildings, bldDeck: shuffle(D.buildings.map(b => b.id)), chooseColors: 0, colorPick: [] };
-  viewSel = null; picked = null; pendingPick = null; diePick = null; banner(''); showResultScene(null); stopBeam();
+  viewSel = null; viewPin = false; $('#viewer').hidden = true; picked = null; pendingPick = null; diePick = null; banner(''); showResultScene(null); stopBeam();
   $('#log').innerHTML = '';
   log(`Ván mới · tầng <b>${TIERS[tier].name}</b>. Máy dùng: <b>${esc(bName)}</b>.`, null, 't');
   // Máy đặt quân úp

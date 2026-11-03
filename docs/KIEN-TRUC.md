@@ -89,26 +89,31 @@ Mỗi kỹ năng trong JSON là một danh sách hiệu ứng, ví dụ:
 
 ---
 
-## 3. Bố cục giao diện: 6 cột cố định (v7.3)
+## 3. Bố cục giao diện: bàn cờ 5 × 7 giữa rừng (v7.4)
 
 ```
-┌─────────┬──────────┬────┬──────────────┬──────────┬────────────┐
-│ Nhật ký │ Máy      │ 🎲 │  SÂN 3 × 6   │ Xem thẻ  │ Bạn · ✦ ·  │
-│         │ Thứ tự   │ 🎲 │  (Máy trên,  │ (thẻ lớn │ chồng Công │
-│         │ lượt     │ 🎲 │   Bạn dưới)  │ + chỉnh  │ trình      │
-│         │          │ nút│              │  ❤/Khiên)│ Vách che   │
-│         │          │    │              │          │ Khắc hệ    │
-└─────────┴──────────┴────┴──────────────┴──────────┴────────────┘
- 190px      205px     76px  3 × --cell    co giãn     275px
+            ┌───┬───┬───┬───┬───┐
+            │Máy│ ▒ │ ▒ │ ▒ │   │   hàng 1–3: sân Máy (3×3 ở giữa)
+            │   │ ▒ │ ▒ │ ▒ │   │
+            │   │ ▒ │ ▒ │ ▒ │   │
+ Nhật ký    ├───┼───┴───┴───┼───┤
+ (ẩn được)  │🎲 │  xí ngầu    │ ⏭ │   hàng 4: Thảy / Thảy lại · 5 xí ngầu · Kết thúc lượt
+ Máy        ├───┼───┬───┬───┼───┤
+ Thứ tự lượt│Bạn│ ▒ │ ▒ │ ▒ │   │   hàng 5–7: sân Bạn
+            │   │ ▒ │ ▒ │ ▒ │   │
+            │💡 │ ▒ │ ▒ │ ▒ │ ⟳ │   góc dưới: Gợi ý · vòng khắc hệ
+            └───┴───┴───┴───┴───┘   Bạn · ✦ · Vách che (cột phải)
 ```
 
-- Trên sân chỉ hiện **ảnh quái gốc** (`assets/art/monsters/`): nhẹ mắt, dễ nhận ra. Chi tiết thẻ đọc ở cột "Xem thẻ".
-  Quái của Máy quay mặt sang trái, có bóng đỏ; quái của Bạn có bóng xanh.
-- Ô sân là hình vuông, cạnh `--cell` = (chiều cao màn hình − thanh trên − lề) / 6.
-- **Vì sao không có gì "chạy":** mỗi cột có độ rộng riêng, không cột nào phụ thuộc nội dung cột khác.
-  Thứ có nội dung thay đổi (xí ngầu, nút) nằm trong cột cố định của nó và xuống dòng bên trong.
-- Hiệu ứng "nổi lên" chỉ dùng `transform: scale(...)` / `translate(...)`, không đổi kích thước, nên không đẩy hàng xóm.
-- Dưới 1100px (điện thoại) các cột xếp chồng: sân → xí ngầu → nhật ký → Máy → thứ tự lượt → xem thẻ → Bạn.
+- **Bàn cờ** là một khối riêng: ô cỏ xen kẽ đậm – nhạt (CSS `repeating-conic-gradient`, không cần ảnh), cạnh ô = `--tile`
+  = (chiều cao màn hình − thanh trên) / 7. Nút và vòng khắc hệ nằm *trong* bàn, mỗi cái cỡ 1 ô.
+- **Nền** là rừng thông vẽ từ ảnh *Pine Tree* / *Large Pine* (Karian-Library/Decoration) bằng `forest.py`
+  → `assets/board/forest.webp`.
+- **Bảng thông tin** (nhật ký, Máy, thứ tự lượt, Bạn, vách che) nằm xa bàn, nền trong suốt mờ (`--glass`, `backdrop-filter`).
+  Nút **📜 Ẩn nhật ký** trên thanh trên cùng (trình duyệt nhớ lựa chọn).
+- **Thẻ lớn** chỉ hiện khi trỏ chuột vào quái / thẻ (`showViewer` / `hideViewer`), đặt cạnh bàn; bấm vào quái để **ghim**
+  và hiện nút chỉnh ❤ / Khiên / trạng thái, ✕ để đóng. Khi chưa ghim, thẻ không chặn chuột (kéo thả vẫn được).
+- Dưới 1100px (điện thoại): bàn cờ lên đầu, vách che ngay dưới, rồi tới các bảng khác; thẻ lớn hiện ở đáy màn hình.
 
 ## 4. Mẹo tối ưu giao diện card game
 
@@ -230,7 +235,7 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=7.3.1` và `script.js?v=7.3.1`
-- `script.js`: `const APP_VER = '7.3.1';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=7.4.0` và `script.js?v=7.4.0`
+- `script.js`: `const APP_VER = '7.4.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.
