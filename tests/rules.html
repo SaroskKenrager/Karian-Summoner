@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kiểm tra luật · Karian's Summoner</title>
+<style>
+  body{font-family:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;background:#fff6e0;color:#221b45;margin:0;padding:16px}
+  h1{font-size:22px;margin:0 0 4px}
+  .sum{font-weight:800;font-size:16px;margin:8px 0 12px}
+  table{border-collapse:collapse;width:100%;max-width:980px;background:#fff;border:2px solid #221b45}
+  td,th{border:1px solid #d6d1e6;padding:5px 8px;text-align:left;font-size:13px;vertical-align:top}
+  .pass{color:#1f7a3a;font-weight:800}.fail{color:#b3261e;font-weight:800}
+  small{color:#4a4370}
+  iframe{width:1280px;height:720px;border:2px dashed #b9b3cf;margin-top:16px;transform:scale(.5);transform-origin:0 0}
+</style>
+</head>
+<body>
+<h1>Kiểm tra luật lõi v6.5 trên bản web</h1>
+<small>Chuyển từ <code>Engine v6.5/tests/test_rules.py</code> (Karian-Library). Mở trang này mỗi lần sửa code: tất cả phải ✅.</small>
+<div class="sum" id="sum">Đang chạy…</div>
+<table><thead><tr><th>#</th><th>Ca kiểm</th><th>Luật</th><th>Kết quả</th></tr></thead><tbody id="rows"></tbody></table>
+<iframe id="game" src="../index.html" title="game"></iframe>
+<script>
+(async () => {
+  const fr = document.getElementById('game');
+  await new Promise(r => fr.addEventListener('load', r));
+  const W = fr.contentWindow;
+  for (let k = 0; k < 100 && !W.eval('typeof D !== "undefined" && D'); k++) await new Promise(r => setTimeout(r, 100));
+  W.confirm = () => true; W.alert = () => {};
+  W.eval(await (await fetch('rules.test.js', { cache: 'no-store' })).text());
+  const rows = document.getElementById('rows'); let pass = 0, fail = 0; const res = [];
+  for (const [n, c] of W.__CASES.entries()) {
+    let r = 'pass', msg = '';
+    try { await c.fn(); } catch (e) { r = 'fail'; msg = e instanceof W.__Fail ? e.message : (e && e.stack || String(e)); }
+    W.eval('if (typeof pendingPick !== "undefined" && pendingPick) finishPick([]); if (typeof S !== "undefined" && S) { S.over = true; S.busy = false; }');
+    r === 'pass' ? pass++ : fail++; res.push({ name: c.name, r, msg });
+    rows.insertAdjacentHTML('beforeend', `<tr><td>${n + 1}</td><td>${c.name}${msg ? `<br><small>${msg.replace(/</g, '&lt;')}</small>` : ''}</td><td><small>${c.rule}</small></td><td class="${r}">${r === 'pass' ? '✅ đạt' : '❌ sai'}</td></tr>`);
+  }
+  document.getElementById('sum').innerHTML = fail ? `❌ ${fail} ca sai · ✅ ${pass} ca đạt` : `✅ Tất cả ${pass} ca đạt`;
+  window.__RESULT = { pass, fail, res };
+})();
+</script>
+</body>
+</html>
