@@ -105,10 +105,12 @@ Mỗi kỹ năng trong JSON là một danh sách hiệu ứng, ví dụ:
             └───┴───┴───┴───┴───┘   Bạn · ✦ · Vách che (cột phải)
 ```
 
-- **Bàn cờ** dùng ảnh *Play area board Gemini AI* (Karian-Library) → `assets/board/play-area.webp`.
-  Lưới đã đo trên ảnh gốc 1792×2400: cột 117→1677 (5 × 312px), ranh giới hàng 102·415·724·1038·1352·1674·1992·2291.
-  CSS dùng `--k = --tile / 312` (1px ảnh gốc trên màn hình) nên mỗi ô sân trùng đúng 1 ô cỏ; nếu thay ảnh khác, đo lại 2 dãy số này
-  (script đo: `tools/grid_detect.py <ảnh>`) rồi sửa `grid-template-rows` / `padding` của `.board`.
+- **Bàn cờ = chính hình nền** *App Background Gemini AI (light enhance)* → `assets/board/app-bg-light.webp`.
+  Ô cỏ trong khoảng trống của ảnh: 125 × 123.2px, ô (0,0) của sân tại (1081, 353.8) trên ảnh gốc 2752×1536.
+  `alignBackground()` phóng ảnh nền để mỗi ô cỏ = 1 ô sân (`--tile`), nên quái đứng thẳng trên ô cỏ của rừng, không còn viền bàn riêng.
+  Trên điện thoại, `.board` tự mang ảnh nền với cùng công thức (CSS).
+- **Đường sáng + tinh linh** (`.glines`, `sparkLines()`): mỗi 16 giây chọn ngẫu nhiên 3–4 đường chia ô trong mỗi vùng 3×3 cho sáng lên,
+  có chấm sáng nhỏ bay dọc theo.
 - **Vùng 3×3** của Máy và Bạn là **ánh nắng rọi xuống** (`.sunfx`): vũng nắng ấm viền mềm, tia nắng chéo trôi chậm, đốm nắng và bụi nắng bay lơ lửng; không khung viền.
 - **Hình nền** = *App Background Gemini AI* (Karian-Library) → `assets/board/app-bg.webp`. Ảnh có sẵn một khoảng trống bàn cờ
   (ảnh gốc 2752×1536: ô 125px, 5 cột từ x=1081, tâm dọc y=723). `alignBackground()` phóng ảnh nền để 125px = 1 ô bàn chơi và đặt
@@ -193,6 +195,7 @@ Mỗi lần vẽ, ô tự đọc `FX`, gắn lớp `fx-hit` và đặt `--fxd` =
 | dải sáng `#beam` | chọn mục tiêu cho ✦ | đường trắng liền "thở" từ nút ✦ tới con trỏ; đầu là vòng tròn trắng nét đứt xoay, bắt dính vào ô hợp lệ |
 | dải vàng `.beam.aim` | chọn / xác nhận mục tiêu kỹ năng | như dải năng lượng nhưng vàng, to hơn; đầu là vòng tròn vàng nét đứt |
 | `.sprite` + `orbpop` | đổi viên xí ngầu thành ✦ (bấm "+✦" hoặc tự động ở bước Gán) | viên bung thành tinh linh sáng, bay về ô năng lượng, viên năng lượng phóng to rồi sáng |
+| `koFly` + `.mist` | quái bị hạ | nhún lên, xoay nửa vòng, bay về khu chiến lợi phẩm của bên hạ, bung sương rồi hiện thành lá bài |
 | `.flysmall` | xe dùng xong | thẻ xe bay về khu Công trình & Xe, nằm ở mục "Đã dùng" (xám) |
 | `fx-ko` | quái bị hạ | ảnh quái xám đi, nghiêng và rơi mờ dần |
 | `acting` | quái đang ra đòn | ảnh quái nhún lên xuống |
@@ -247,7 +250,7 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=7.7.0` và `script.js?v=7.7.0`
-- `script.js`: `const APP_VER = '7.7.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=7.8.0` và `script.js?v=7.8.0`
+- `script.js`: `const APP_VER = '7.8.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.

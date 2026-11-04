@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '7.7.0';   // trùng với ?v= trong index.html
+const APP_VER = '7.8.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -104,7 +104,7 @@ function hpLine(u) {
   if (h.hp !== u.hp) { h.from = h.hp; h.hp = u.hp; h.t = now; }
   const el = now - h.t, drop = h.from > u.hp && el < 1200;
   const pct = v => Math.max(0, Math.min(100, v / u.maxHp * 100)).toFixed(1) + '%';
-  return { el: Math.round(el), cls: drop ? ' drain' : '', html: `<div class="hpbar1${drop ? ' drain' : ''}" style="--from:${pct(h.from)};--to:${pct(u.hp)};--fxd:-${Math.round(el)}ms" title="❤ ${u.hp}/${u.maxHp} — chỉnh ❤ ở thẻ lớn (bấm vào quái)"><b class="lag"></b><i style="width:${pct(u.hp)}"></i><span>❤ ${u.hp}/${u.maxHp}</span></div>` };
+  return { el: Math.round(el), cls: drop ? ' drain' : '', html: `<div class="hpbar1${drop ? ' drain' : ''}" style="--from:${pct(h.from)};--to:${pct(u.hp)};--fxd:-${Math.round(el)}ms" title="❤ ${u.hp}/${u.maxHp} — chỉnh ❤ ở thẻ lớn (bấm vào quái)"><div class="hpfill"><b class="lag"></b><i style="width:${pct(u.hp)}"></i></div><span>❤ ${u.hp}/${u.maxHp}</span></div>` };
 }
 const uName = u => `<b>${esc(M(u).name)}</b>`;
 /** Nội tại / Ngưỡng / Di nguyện / Nhà kích hoạt: ghi nhật ký nổi bật + toast */
@@ -245,6 +245,31 @@ async function checkThreshold(o, i, prev) {
   notify(`${uName(u)} còn ≤${th.at} ❤ → Ngưỡng <i>${esc(th.name)}</i>`, o);
   await runEffects(o, u, i, th.effects, o === 'P' && S.turn === 'P' ? playerChooser : aiChooser, th.name);
 }
+/** hiệu ứng bị hạ: quái nhún lên, xoay nửa vòng, bay về khu chiến lợi phẩm của bên hạ, bung sương rồi hiện thành lá bài */
+function koFly(u, o, rect) {
+  const done = () => { u.koFly = false; const c = document.querySelector(`.troph[data-uid="${u.uid}"]`); if (c) { c.classList.remove('arriving'); c.classList.add('mistin'); } };
+  if (!document.body.animate) { done(); return; }
+  const fly = document.createElement('img'); fly.className = 'kofly'; fly.src = artImg(u.id); document.body.appendChild(fly);
+  Object.assign(fly.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' });
+  const flip = o === 'B' ? -1 : 1;
+  setTimeout(async () => {
+    const dest = document.getElementById('tro' + foe(o)), slot = document.querySelector(`.troph[data-uid="${u.uid}"]`);
+    const r1 = (slot || dest || document.body).getBoundingClientRect();
+    const dx = r1.left + r1.width / 2 - (rect.left + rect.width / 2), dy = r1.top + r1.height / 2 - (rect.top + rect.height / 2);
+    const sc = Math.max(.25, (r1.width || 60) / rect.width);
+    await fly.animate([
+      { transform: `translate(0,0) scaleX(${flip}) rotate(0)`, offset: 0 },
+      { transform: `translate(0,-28%) scaleX(${flip}) scale(1.12) rotate(0)`, offset: .18, easing: 'ease-out' },
+      { transform: `translate(0,-8%) scaleX(${flip}) rotate(180deg)`, offset: .42 },
+      { transform: `translate(${dx}px,${dy}px) scaleX(${flip}) scale(${sc}) rotate(360deg)`, offset: 1, opacity: .9 }
+    ], { duration: 1250, easing: 'cubic-bezier(.45,0,.3,1)', fill: 'forwards' }).finished;
+    fly.remove();
+    const mist = document.createElement('i'); mist.className = 'mist'; document.body.appendChild(mist);
+    Object.assign(mist.style, { left: r1.left + r1.width / 2 + 'px', top: r1.top + r1.height / 2 + 'px' });
+    mist.animate([{ transform: 'translate(-50%,-50%) scale(.3)', opacity: .95 }, { transform: 'translate(-50%,-50%) scale(1.6)', opacity: 0 }], { duration: 650, easing: 'ease-out' }).finished.then(() => mist.remove());
+    setTimeout(done, 120);
+  }, 60);
+}
 async function ko(o, i) {
   const s = side(o), u = s.grid[i]; if (!isMon(u)) return; const m = M(u);
   // Tinh linh: lần đầu bị hạ, loại 1 dự bị để quay lại
@@ -254,9 +279,9 @@ async function ko(o, i) {
     u.spiritUsed = true; u.hp = m.trait_bot.hp; u.shield = 0; u.st = {};
     log(`${uName(u)} (<i>${esc(m.trait_bot.n)}</i>) loại dự bị ${uName(r)} để quay lại với ${u.hp} ❤`, o); render(); return;
   }
-  fx(o, i, 'fx-ko', 1000, { id: u.id });
+  const artEl = document.querySelector(`.cell[data-o="${o}"][data-i="${i}"] .art`), artRect = artEl && artEl.getBoundingClientRect();
   s.grid[i] = null; s.dead.push(u);
-  if (!u.scored) { u.scored = true; side(foe(o)).trophies.push(u); }
+  if (!u.scored) { u.scored = true; side(foe(o)).trophies.push(u); if (artRect) { u.koFly = true; koFly(u, o, artRect); } }
   log(`💥 ${uName(u)} bị hạ! ${who(foe(o))} +${m.price} 🍇`, o);
   render();
   if (m.deathwish) { log(`${uName(u)} · Di nguyện <i>${esc(m.deathwish.name)}</i>`, o); await runEffects(o, u, i, m.deathwish.effects, aiChooser, m.deathwish.name, true); }
@@ -921,16 +946,27 @@ let viewSel = null;
 /* ---------- hình nền "App Background Gemini AI" khớp với bàn chơi ----------
  * Khoảng trống bàn cờ trong ảnh nền (ảnh gốc 2752×1536): 5 cột ô 125px từ x=1081, các hàng từ y≈228 đến 1218 (tâm y=723).
  * Phóng ảnh nền để 125px ảnh = 1 ô của bàn chơi, đặt cột trùng cột, tâm trùng tâm → bàn chơi "nằm" đúng trong khoảng trống của rừng. */
-const BG = { w: 2752, h: 1536, tile: 125, x0: 1081, cy: 723 };
+const BG = { w: 2752, h: 1536, tx: 125, ty: 123.2, x0: 1081, y0: 353.8 };   // ô cỏ 125 × 123.2px, ô (0,0) của sân tại (1081, 353.8)
+/** chọn ngẫu nhiên vài đường chia ô trong mỗi vùng 3×3, cho đường sáng lên và tinh linh nhỏ bay dọc theo */
+function sparkLines() {
+  document.querySelectorAll('.glines').forEach(g => {
+    const all = [];
+    [0, 1, 2, 3].forEach(k => { all.push({ v: true, at: k / 3 }); all.push({ v: false, at: k / 3 }); });
+    const pick = all.sort(() => Math.random() - .5).slice(0, 3 + Math.floor(Math.random() * 2));
+    g.innerHTML = pick.map(l => {
+      const seg = Math.random() < .5 ? [0, 1] : (Math.random() < .5 ? [0, 2 / 3] : [1 / 3, 1]);   // cả cạnh hoặc 2/3 cạnh
+      const st = l.v ? `left:${l.at * 100}%;top:${seg[0] * 100}%;height:${(seg[1] - seg[0]) * 100}%` : `top:${l.at * 100}%;left:${seg[0] * 100}%;width:${(seg[1] - seg[0]) * 100}%`;
+      const d = (5 + Math.random() * 5).toFixed(1), dl = (-Math.random() * 8).toFixed(1), rev = Math.random() < .5 ? ' rev' : '';
+      return `<span class="gl ${l.v ? 'v' : 'h'}${rev}" style="${st};--d:${d}s;--dl:${dl}s"><i></i><i style="animation-delay:calc(var(--dl) - ${(+d / 2).toFixed(1)}s)"></i></span>`;
+    }).join('');
+  });
+}
 function alignBackground() {
   const b = document.getElementById('board'); if (!b) return;
   if (innerWidth <= 1100) { document.body.style.backgroundSize = ''; document.body.style.backgroundPosition = ''; return; }
-  const cs = getComputedStyle(b), r = b.getBoundingClientRect();
-  const pl = parseFloat(cs.paddingLeft), pt = parseFloat(cs.paddingTop), pb = parseFloat(cs.paddingBottom);
-  const tile = (r.width - pl - parseFloat(cs.paddingRight)) / 5, gx = r.left + pl, gcy = r.top + pt + (r.height - pt - pb) / 2;
-  const k = tile / BG.tile, x = gx - BG.x0 * k, y = gcy - BG.cy * k;
-  document.body.style.backgroundSize = `${BG.w * k}px ${BG.h * k}px, cover`;
-  document.body.style.backgroundPosition = `${x}px ${y}px, center`;
+  const r = b.getBoundingClientRect(), kx = (r.width / 5) / BG.tx, ky = (r.height / 7) / BG.ty;
+  document.body.style.backgroundSize = `${BG.w * kx}px ${BG.h * ky}px, cover`;
+  document.body.style.backgroundPosition = `${r.left - BG.x0 * kx}px ${r.top - BG.y0 * ky}px, center`;
 }
 function render(animDice) {
   if (!S) return;
@@ -961,7 +997,7 @@ function renderStatus() {
 }
 function tokensHtml(u) {
   let h = '';
-  if (u.shield) h += `<span class="t" title="Khiên ${u.shield}"><img src="${TOK.shield}" alt="Khiên"><b>${u.shield}</b></span>`;
+  if (u.shield) h += `<span class="t sh" title="Khiên ${u.shield}"><img src="${TOK.shield}" alt="Khiên"><b>${u.shield}</b></span>`;
   ST_KEYS.forEach(k => { if (u.st[k]) h += `<span class="t" title="${ST_VI[k]}"><img src="${TOK[k]}" alt="${ST_VI[k]}"></span>`; });
   return `<div class="tok">${h}</div>`;
 }
@@ -1063,8 +1099,8 @@ function renderTray(animDice) {
 function energyHtml(n) { return `<span class="energy" title="Năng lượng ${n}/3">${[0, 1, 2].map(k => `<img src="${TOK.energy}" class="${k < n ? 'on' : ''}" alt="">`).join('')}</span>`; }
 function renderInfo(o) {
   const s = side(o), sc = scoreOf(o);
-  const trophies = s.trophies.map(u => `<img class="artmini" src="${artImg(u.id)}" title="${esc(M(u).name)} · ${M(u).price}🍇" data-view="t:${u.uid}" alt="">`).join('') || '<span class="muted">—</span>';
-  const res = o === 'B' ? s.reserve.map(() => `<img src="${BACK_M}" alt="dự bị">`).join('') || '<span class="muted">—</span>' : '';
+  const trophies = s.trophies.map(u => `<div class="hcard troph${u.koFly ? ' arriving' : ''}" data-uid="${u.uid}" data-view="t:${u.uid}" title="${esc(M(u).name)} · ${M(u).price} 🍇"><img src="${monImg(u.id)}" alt="${esc(M(u).name)}"></div>`).join('') || '<span class="muted">—</span>';
+  const res = o === 'B' ? s.reserve.map(() => `<div class="hcard back"><img src="${BACK_M}" alt="dự bị"></div>`).join('') || '<span class="muted">—</span>' : '';
   let energy = '';
   if (!T().noEnergy) {
     if (o === 'P') {
@@ -1074,10 +1110,10 @@ function renderInfo(o) {
         <small class="muted">Viên không có quái cùng màu +1 · giữ tối đa 3${houseActive('P') ? ' · 🏠 Nhà còn xí ngầu → cuối lượt chỉ giữ 2' : ''}</small><div class="eacts">${acts}</div></div>`;
     } else energy = `<div class="meters">${energyHtml(s.energy)}</div>`;
   }
-  $('#info' + o).innerHTML = `<div class="who"><h3>${o === 'P' ? 'Bạn' : '🤖 Máy'}</h3><span class="pill">🍇 ${sc.total}</span></div>
+  $('#info' + o).innerHTML = `<div class="who"><h3>${o === 'P' ? 'Bạn' : '🤖 Máy'}</h3><span class="fpill" title="Tổng điểm"><img src="assets/icons/Fruit.webp" alt="🍇"><b>${sc.total}</b></span></div>
     ${o === 'P' && S.buildings ? `<div class="pwrap">${energy}<div class="bdeck" data-deck title="Chồng Công trình & Xe — bấm để rút (2 ✦)"><img src="${BACK_B}" alt="Chồng Công trình"><b>${S.bldDeck.length}</b><small>Công trình</small></div></div>` : energy}
-    ${o === 'B' ? `<div class="lbl">Dự bị (úp) · ${s.reserve.length}</div><div class="mini-cards">${res}</div>` : ''}
-    <div class="lbl">Chiến lợi phẩm (quái đã hạ) · ${sc.ko} 🍇</div><div class="mini-cards">${trophies}</div>`;
+    ${o === 'B' ? `<div class="lbl">Dự bị (úp) · ${s.reserve.length}</div><div class="handcards">${res}</div>` : ''}
+    <div class="lbl lbltro">Chiến lợi phẩm <span class="fpill" title="${sc.ko} 🍇 từ quái đã hạ"><img src="assets/icons/Fruit.webp" alt="🍇"><b>${sc.ko}</b></span></div><div class="handcards trophies" id="tro${o}">${trophies}</div>`;
 }
 /** Các hành động Năng lượng dạng nút chữ */
 function energyActions() {
@@ -1321,6 +1357,7 @@ function bindUI() {
   $('#btnNew').onclick = () => setupModal();
   $('#btnRules').onclick = () => rulesModal();
   addEventListener('resize', alignBackground); setTimeout(alignBackground, 50);
+  sparkLines(); setInterval(sparkLines, 16000);
   const setLog = hide => { document.body.classList.toggle('nolog', hide); $('#btnLog').textContent = hide ? '📜 Hiện nhật ký' : '📜 Ẩn nhật ký'; try { localStorage.setItem('karian_nolog', hide ? '1' : ''); } catch (_) { } };
   let hideLog = false; try { hideLog = localStorage.getItem('karian_nolog') === '1'; } catch (_) { }
   setLog(hideLog);

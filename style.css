@@ -568,3 +568,76 @@ body{background-color:#4f7a35;background-image:url(assets/board/app-bg.webp),url
 @media (max-width:1100px){
   body{background:url(assets/board/app-bg.webp) center top/cover no-repeat;background-color:#4f7a35}
 }
+
+/* =====================================================================
+   v7.8 · nền "App Background Gemini AI (light enhance)" = chính là bàn chơi
+   Ô cỏ của ảnh: 125 × 123.2px, ô (0,0) của sân tại (1081, 353.8) trên ảnh gốc 2752×1536.
+   Bàn chơi không còn ảnh / viền riêng: alignBackground() phóng ảnh nền để mỗi ô cỏ = 1 ô sân.
+   ===================================================================== */
+:root{--tile:clamp(50px, calc((100vh - var(--top) - 34px) / 7), 140px)}
+body{background-image:url(assets/board/app-bg-light.webp),url(assets/board/forest.webp)}
+.board{grid-template-columns:repeat(5,var(--tile));grid-template-rows:repeat(7,var(--tile));padding:0;
+  background:none;-webkit-mask-image:none;mask-image:none;border-radius:0;box-shadow:none}
+
+/* 4 · đường sáng ngẫu nhiên + tinh linh bay theo đường chia vùng 3×3 */
+.glines{position:relative;pointer-events:none;z-index:0}
+.gB{grid-area:1/2/4/5}.gP{grid-area:5/2/8/5}
+.gl{position:absolute;display:block;border-radius:3px;animation:glshine var(--d) ease-in-out var(--dl) infinite}
+.gl.v{width:3px;margin-left:-1.5px;background:linear-gradient(180deg,transparent,rgb(255 250 210/.85) 20%,rgb(255 255 235/.95) 50%,rgb(255 250 210/.85) 80%,transparent);box-shadow:0 0 8px 2px rgb(255 240 170/.55)}
+.gl.h{height:3px;margin-top:-1.5px;background:linear-gradient(90deg,transparent,rgb(255 250 210/.85) 20%,rgb(255 255 235/.95) 50%,rgb(255 250 210/.85) 80%,transparent);box-shadow:0 0 8px 2px rgb(255 240 170/.55)}
+@keyframes glshine{0%,100%{opacity:.25}50%{opacity:.95}}
+/* tinh linh: chấm sáng mờ bay dọc đường */
+.gl i{position:absolute;width:9px;height:9px;margin:-3px;border-radius:50%;background:radial-gradient(circle,#fff 0 30%,rgb(255 245 190/.9) 50%,transparent 72%);box-shadow:0 0 10px 4px rgb(255 240 170/.65)}
+.gl.v i{left:0;animation:flyv var(--d) linear var(--dl) infinite}
+.gl.h i{top:0;animation:flyh var(--d) linear var(--dl) infinite}
+.gl.rev i{animation-direction:reverse}
+@keyframes flyv{0%{top:0;opacity:0;transform:translateX(0)}12%{opacity:1}35%{transform:translateX(4px)}65%{transform:translateX(-4px)}88%{opacity:1}100%{top:100%;opacity:0;transform:translateX(0)}}
+@keyframes flyh{0%{left:0;opacity:0;transform:translateY(0)}12%{opacity:1}35%{transform:translateY(-4px)}65%{transform:translateY(4px)}88%{opacity:1}100%{left:100%;opacity:0;transform:translateY(0)}}
+
+/* 5 · thanh máu mỏng còn 2/3, chữ giữ nguyên cỡ */
+.hpbar1{height:calc((var(--tile)*.085 + 9px) * 2 / 3);overflow:visible;background:none;box-shadow:none;margin-top:4px}
+.hpbar1 .hpfill{position:absolute;inset:0;border-radius:6px;overflow:hidden;background:rgb(34 27 69/.82);box-shadow:0 0 0 1.5px rgb(34 27 69/.9)}
+.hpbar1.drain .hpfill{animation:hpflash .6s var(--fxd) both}
+.hpbar1.drain{animation:none}
+.hpbar1 span{position:absolute;inset:-4px 0;z-index:2;text-shadow:0 1px 0 rgb(34 27 69),0 0 3px rgb(34 27 69),0 0 2px rgb(34 27 69)}
+
+/* 6 · khiên & trạng thái to gấp 2; số khiên ghi ngay trong ký hiệu */
+.board .tok{top:14px;right:0;gap:2px;max-height:calc(var(--tile) * .78);flex-wrap:wrap-reverse;align-content:flex-start}
+.board .tok .t{width:clamp(28px, calc(var(--tile) * .3), 42px);height:clamp(28px, calc(var(--tile) * .3), 42px);border-width:2px}
+.board .tok .t.sh{background:none;border:0;filter:drop-shadow(0 2px 2px rgb(34 27 69/.5))}
+.board .tok .t.sh img{width:100%;height:100%}
+.board .tok .t.sh b{position:absolute;inset:0;right:0;bottom:0;display:grid;place-items:center;background:none;border:0;padding:0 0 2px;color:#fff;font-family:var(--display);font-weight:800;font-size:clamp(13px, calc(var(--tile) * .15), 20px);text-shadow:0 1px 0 #1b4f8f,0 0 3px #1b4f8f}
+
+/* 7 · lá bài dự bị / chiến lợi phẩm to như Vách che; ô 🍇 rõ */
+.side-info .handcards{min-height:0;margin-top:4px}
+.side-info .hcard.back{cursor:default}.side-info .hcard.back:hover{transform:none}
+.fpill{display:inline-flex;align-items:center;gap:3px;background:#fff;border:2.5px solid var(--ink);border-radius:999px;padding:1px 10px 1px 3px;box-shadow:0 2px 0 var(--ink);vertical-align:middle}
+.fpill img{width:22px;height:22px;object-fit:contain}
+.fpill b{font-family:var(--display);font-size:16px;line-height:1;padding-top:2px}
+.lbltro{display:flex;align-items:center;gap:8px}
+.lbltro .fpill{transform:scale(.88);transform-origin:left center}
+/* ô Lượt gọn: chỉ bước đang chạy hiện dòng mô tả */
+.step small{display:none}.step.on small{display:block}
+.steps .step:nth-child(3) small{display:none}.steps .step.hint:nth-child(3) small{display:block}
+
+/* 8 · quái bị hạ bay về chiến lợi phẩm */
+.kofly{position:fixed;z-index:46;pointer-events:none;object-fit:contain;filter:drop-shadow(0 6px 6px rgb(0 0 0/.35));transform-origin:center}
+.mist{position:fixed;z-index:47;width:130px;height:130px;border-radius:50%;pointer-events:none;filter:blur(5px);
+  background:radial-gradient(circle,rgb(255 255 255/.95) 0 22%,rgb(232 244 255/.7) 45%,rgb(232 244 255/0) 70%)}
+.troph.arriving{opacity:0}
+.troph.mistin{animation:mistin .7s ease-out}
+@keyframes mistin{0%{opacity:0;transform:scale(.6);filter:blur(6px) brightness(2)}60%{opacity:1;filter:blur(0) brightness(1.3)}100%{transform:none;filter:none}}
+
+@media (max-width:1100px){
+  :root{--tile:clamp(48px, calc((100vw - 18px) / 5.2), 120px)}
+  /* điện thoại: bàn chơi tự mang ảnh nền, căn cùng công thức */
+  .board{background:url(assets/board/app-bg-light.webp) no-repeat;background-size:calc(var(--tile) * 2752 / 125) calc(var(--tile) * 1536 / 123.2);
+    background-position:calc(var(--tile) * -1081 / 125) calc(var(--tile) * -353.8 / 123.2);border-radius:16px}
+}
+/* v7.8 tinh chỉnh: đường sáng rõ hơn; nền đã sáng sẵn nên vũng nắng dịu lại */
+.gl.v{width:4px;margin-left:-2px;box-shadow:0 0 10px 3px rgb(255 240 170/.7)}
+.gl.h{height:4px;margin-top:-2px;box-shadow:0 0 10px 3px rgb(255 240 170/.7)}
+@keyframes glshine{0%,100%{opacity:.4}50%{opacity:1}}
+.gl i{width:11px;height:11px;margin:-4px}
+.sunfx::before{opacity:.7}
+@keyframes sunbreath{from{opacity:.5}to{opacity:.75}}
