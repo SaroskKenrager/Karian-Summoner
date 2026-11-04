@@ -651,3 +651,29 @@ body{background-image:url(assets/board/app-bg-light.webp),url(assets/board/fores
 .topbar .status{position:absolute;left:var(--bx,50%);top:50%;transform:translate(-50%,-50%);flex:none;width:max-content;max-width:calc(100vw - 560px)}
 @media (max-width:1100px){ .topbar .status{position:static;transform:none;max-width:none;width:auto} }
 .topbar .tools{margin-left:auto}
+
+/* =====================================================================
+   v8.0 · danh sách lá bài · chọn màu bằng icon · icon vai trò · chữ máu giữa thanh · hoàn tác gọi quái
+   ===================================================================== */
+.brand #btnCards{margin-left:10px;font-family:var(--body);font-size:13px}
+.cardlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px}
+.cardlist .cl{border:0;padding:0;background:none;border-radius:8px;transition:transform .12s}
+.cardlist .cl img{width:100%;display:block;border-radius:8px;box-shadow:0 3px 8px rgb(0 0 0/.25)}
+.cardlist .cl:hover{transform:translateY(-4px) scale(1.03)}
+.cltabs{margin-bottom:4px}
+.clzoom{position:fixed;inset:0;z-index:60;background:rgb(34 27 69/.6);display:grid;place-items:center;cursor:zoom-out}
+.clzoom img{max-height:88vh;max-width:92vw;border-radius:14px;box-shadow:0 20px 50px rgb(0 0 0/.5)}
+/* 5 · chọn màu lượt đầu: bấm icon, icon được chọn to 1.5× và viền dày hơn */
+.dicebar .colorpick{gap:10px;padding:4px 2px}
+.cpick{border:2.5px solid rgb(34 27 69/.55);background:#fff;border-radius:50%;width:34px;height:34px;padding:2px;display:grid;place-items:center;transition:transform .15s,border-width .15s,box-shadow .15s;box-shadow:0 2px 0 rgb(34 27 69/.35)}
+.cpick img{width:100%;height:100%}
+.cpick.on{transform:scale(1.5);border-width:2.75px;border-color:var(--ink);box-shadow:0 0 0 2px var(--sun),0 3px 0 var(--ink);z-index:2}
+.cpick:not(.on):hover{transform:scale(1.15)}
+/* 7 · icon vai trò ở góc phải trên (1.5× icon hệ); token xuống dưới để không che */
+.cell .unit>img.roleic{position:absolute;border-radius:0;right:1px;top:0;width:20px;height:20px;object-fit:contain;filter:drop-shadow(0 1px 1px rgb(34 27 69/.7));pointer-events:none;z-index:3}
+.uname{right:22px}
+.board .tok{top:23px}
+/* 8 · chữ ❤ nằm giữa độ dày thanh máu */
+.hpbar1 span{inset:0;padding-top:0;line-height:1;align-items:center;transform:translateY(1px)}
+/* 4 · vách che nhận lại quái (hoàn tác) */
+.hand.over{box-shadow:0 0 0 3px var(--mint),0 6px 18px rgb(0 0 0/.18)}

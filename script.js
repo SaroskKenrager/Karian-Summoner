@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '7.9.0';   // trùng với ?v= trong index.html
+const APP_VER = '8.0.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -261,7 +261,7 @@ function koFly(u, o, rect) {
       { transform: `translate(0,0) scaleX(${flip}) rotate(0)`, offset: 0 },
       { transform: `translate(0,-28%) scaleX(${flip}) scale(1.12) rotate(0)`, offset: .18, easing: 'ease-out' },
       { transform: `translate(0,-8%) scaleX(${flip}) rotate(360deg)`, offset: .42 },
-      { transform: `translate(${dx}px,${dy}px) scaleX(${flip}) scale(${sc}) rotate(540deg)`, offset: 1, opacity: .9 }
+      { transform: `translate(${dx}px,${dy}px) scaleX(${flip}) scale(${sc}) rotate(720deg)`, offset: 1, opacity: .9 }
     ], { duration: 1250, easing: 'cubic-bezier(.45,0,.3,1)', fill: 'forwards' }).finished;
     fly.remove();
     const mist = document.createElement('i'); mist.className = 'mist'; document.body.appendChild(mist);
@@ -472,7 +472,7 @@ function playerChooser(req) {
     const eff = req.effect, kind = { d: `⚔ ${eff.v} sát thương`, h: `hồi ${eff.v} ❤`, s: `+${eff.v} Khiên`, st: `gây ${eff.v}`, bf: `${eff.v}` }[eff.k] || '';
     const canCancel = S.assignCtx && !S.assignCtx.confirmed;
     banner(`<span><b>${esc(req.label)}</b>: ${req.confirm ? 'chạm 1 mục tiêu sáng để xác nhận' : 'chọn ' + (req.pick > 1 ? req.pick + ' mục tiêu' : 'mục tiêu')} (${esc(eff.printed || '')}) · ${kind}</span>` +
-      (req.pick > 1 ? `<button class="btn sm" data-pick="done">Xong</button>` : '') + (canCancel ? `<button class="btn sm dark" data-act="cancelassign">↶ Huỷ gán</button>` : `<button class="btn sm warn" data-pick="skip">Bỏ qua</button>`));
+      (req.pick > 1 ? `<button class="btn sm" data-pick="done">Xong</button>` : '') + (canCancel ? `<button class="btn sm dark" data-act="cancelassign">↶ Huỷ gán</button>` : S.beamKind === 'nrg' ? `<button class="btn sm dark" data-act="cancelassign">↶ Huỷ</button>` : `<button class="btn sm warn" data-pick="skip">Bỏ qua</button>`));
     render();
   });
 }
@@ -507,7 +507,15 @@ function moveBeam(x, y) {
 }
 function stopBeam() { beam = null; const svg = document.getElementById('beam'); if (svg) svg.setAttribute('class', 'beam'); }
 document.addEventListener('mousemove', e => { if (beam) moveBeam(e.clientX, e.clientY); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && pendingPick && S && S.assignCtx && !S.assignCtx.confirmed) finishPick(CANCEL); });
+/** ↶ Huỷ: gán xí ngầu (trước khi xác nhận) hoặc thao tác năng lượng đang chọn mục tiêu — không mất ✦ */
+function cancelAction() {
+  if (!S) return;
+  if (diePick) { endDiePick(null); log('↶ Huỷ thao tác năng lượng', 'P'); return; }
+  if (!pendingPick) return;
+  if (S.assignCtx && !S.assignCtx.confirmed) { finishPick(CANCEL); return; }
+  if (S.beamKind === 'nrg') { S.nrgCancelled = true; finishPick([]); log('↶ Huỷ thao tác năng lượng (không mất ✦)', 'P'); }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cancelAction(); });
 function onPickCell(o, i) {
   const p = pendingPick; if (!p) return false;
   if (o !== p.req.side) { toast('Chọn ô được viền sáng.'); return true; }
@@ -669,7 +677,6 @@ async function assignDie(di, ci) {
   const s = side('P'), die = s.dice[di], u = s.grid[ci];
   if (!die || die.used) return;
   if (!isMon(u)) { toast('Thả xí ngầu lên một quái của bạn.'); return; }
-  lockDead('P'); if (die.used) { toast('Viên này không có quái cùng màu nên đã thành ✦.'); return; }
   if (die.el !== M(u).element) { toast(`Viên ${EL_VI[die.el]} chỉ kích hoạt quái hệ ${EL_VI[die.el]}.`); return; }
   if (u.st.stun) { toast(`${M(u).name} đang Choáng, không dùng được kỹ năng.`); return; }
   if (u.acted) { toast('Mỗi quái chỉ kích hoạt 1 lần mỗi lượt.'); return; }
@@ -729,11 +736,28 @@ function summon(o, u, cell, quiet) {
   const s = side(o); s.reserve.splice(s.reserve.indexOf(u), 1); s.grid[cell] = u;
   if (quiet) return;
   s.summoned = true;
+  if (o === 'P') s.lastSummon = { u, heals: monsOf(o).map(j => [s.grid[j], s.grid[j].hp]) };   // để hoàn tác
   log(`✨ ${who(o)} gọi ${uName(u)} ra ô ${ROW_VI[rowOf(cell)]}-${colOf(cell) + 1}`, o);
   const tt = M(u).trait_top;
   if (tt && tt.k === 'build') runTopTrait(o, u, true);
 }
 /** Thuật triệu hồi của Máy (spol 'smart'): biết xí ngầu thì chọn quái hợp xí ngầu nhất, chưa biết thì ưu tiên Khiêu khích → đắt */
+/** hoàn tác: kéo quái về vách che — lúc đặt quân: mọi quái; trong lượt: quái vừa gọi, chưa kích hoạt */
+function canUnsummon(i) {
+  const s = side('P'), u = s.grid[i]; if (!isMon(u) || S.over) return false;
+  if (S.phase === 'place') return true;
+  return S.phase === 'play' && S.turn === 'P' && !S.busy && s.lastSummon && s.lastSummon.u === u && !u.acted;
+}
+function unsummon(i) {
+  const s = side('P'), u = s.grid[i];
+  if (!canUnsummon(i)) { toast(S.phase === 'play' ? 'Chỉ trả về được quái vừa gọi trong lượt này, khi nó chưa kích hoạt.' : 'Không trả về được.'); return; }
+  if (S.phase === 'play') {
+    s.lastSummon.heals.forEach(([v, hp]) => { if (v !== u && s.grid.includes(v)) v.hp = hp; });   // bỏ phần hồi ❤ của Kiến thiết
+    s.summoned = false; s.lastSummon = null; u.hp = u.maxHp; u.shield = 0; u.st = {};
+    log(`↶ Bạn trả ${uName(u)} về vách che (hoàn tác Thuật triệu hồi)`, 'P');
+  }
+  s.grid[i] = null; s.reserve.push(u); viewPin = false; render();
+}
 function botSummon(dice) {
   const s = side('B');
   if (s.summoned || monsOf('B').length >= D.rules.team.on_field || !s.reserve.length) return false;
@@ -811,13 +835,13 @@ async function botTurn() {
     const rr = s.dice.filter(d => ready().has(d.el) && bestDie('B', d.el, d.face, s.dice) < expDie('B', d.el, s.dice) - 0.01);
     if (rr.length) { const b0 = rr.map(d => EL_VI[d.el] + ' ' + d.face); rr.forEach(d => { d.face = d6(); d.anim = true; }); log(`Máy thảy lại: ${rr.map((d, k) => b0[k] + ' → ' + d.face).join(' · ')}`, 'B'); render(true); await sleep(650); }
   }
-  setStep(3);
-  lockDead('B'); await sleep(250);
+  setStep(3); await sleep(250);
   if (!first && !t.noEnergy) {
     // trả 1 ✦ / viên khi lời ≥ 1 (giữ 3 ✦ nếu định đổi màu)
     const canRe = t.energyActs && !houseActive('B');
     const dup = new Set(monsOf('B').map(i => M(s.grid[i]).element)).size < monsOf('B').length;
-    const keep = canRe && dup && s.dice.some(d => d.toE) ? 3 : 0;
+    const deadEl = e => !monsOf('B').some(i => M(s.grid[i]).element === e);
+    const keep = canRe && dup && s.dice.some(d => !d.used && deadEl(d.el)) ? 3 : 0;
     for (let n = 0; n < 6 && s.energy - 1 >= keep; n++) {
       const cand = s.dice.filter(d => !d.used && ready().has(d.el)).map(d => ({ d, g: expDie('B', d.el, s.dice) - bestDie('B', d.el, d.face, s.dice) })).filter(x => x.g >= 1).sort((a, b) => b.g - a.g);
       if (!cand.length) break;
@@ -828,13 +852,15 @@ async function botTurn() {
   // đổi màu: viên đã thành ✦ → màu của quái còn rảnh có kỹ năng ở mặt đó
   while (t.energyActs && !houseActive('B') && s.energy >= 3) {
     const idle = monsOf('B').filter(i => !s.grid[i].st.stun && !plan.some(p => p.i === i));
-    const spare = s.dice.filter(d => d.toE);
+    const spare = s.dice.filter(d => d.toE || (!d.used && !monsOf('B').some(i => M(s.grid[i]).element === d.el)));
     let best = null;
     spare.forEach(d => idle.forEach(i => { const u = s.grid[i], f = findSkill(u, { el: M(u).element, face: d.face, used: false }, s.dice); if (f && (!best || skillValue(f.skill) > best.v)) best = { d, u, v: skillValue(f.skill) }; }));
     if (!best || best.v < 3) break;
     recolorSelected(M(best.u).element, best.d, 'B'); await sleep(550);
     plan = planBot(s.dice);
   }
+  // cuối bước Gán: viên dư (không có quái cùng màu) mới tự hoá thành ✦
+  { const keepD = new Set(plan.flatMap(p => [p.die, ...p.extra.map(j => s.dice[j])])); keepD.forEach(d => (d.used = true)); lockDead('B'); keepD.forEach(d => (d.used = false)); }
   plan.sort((a, b) => (M(a.u).role_ai !== 'Support') - (M(b.u).role_ai !== 'Support'));   // Hỗ trợ trước
   log(plan.length ? `Máy gán: ${plan.map(p => `${EL_VI[p.die.el]} ${p.gift ? '6 (Thiên phú)' : p.die.face} → ${uName(p.u)} (${esc(p.skill.name)})`).join(' · ')}` : 'Máy không gán được viên nào', 'B');
   await sleep(450); setStep(4);
@@ -865,6 +891,7 @@ async function botTurn() {
 }
 
 /* ================= kéo thả / thao tác ================= */
+let dragData = null;
 let picked = null; // chọn-rồi-chạm (thay kéo thả trên điện thoại): {type:'res'|'die'|'cell'|'bld', ...}
 function canPlace() { return S.phase === 'place' || (S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over); }
 function dropOn(o, i, data) {
@@ -907,11 +934,19 @@ function dropOn(o, i, data) {
 function bindDnD() {
   document.addEventListener('dragstart', e => {
     const t = e.target.closest('[data-drag]'); if (!t) return;
+    try { dragData = JSON.parse(t.dataset.drag); } catch (_) { dragData = null; }
     viewPin = false; hideViewer(true);
     e.dataTransfer.setData('text/plain', t.dataset.drag); e.dataTransfer.effectAllowed = 'move';
   });
   document.addEventListener('dragover', e => { const c = e.target.closest('.cell'); if (c) { e.preventDefault(); c.classList.add('over'); } });
   document.addEventListener('dragleave', e => { const c = e.target.closest('.cell'); if (c) c.classList.remove('over'); });
+  // vách che nhận lại quái kéo từ sân (hoàn tác)
+  document.addEventListener('dragover', e => { const h = e.target.closest('.hand'); if (h && dragData && dragData.type === 'cell') { e.preventDefault(); h.classList.add('over'); } });
+  document.addEventListener('dragleave', e => { const h = e.target.closest('.hand'); if (h) h.classList.remove('over'); });
+  document.addEventListener('drop', e => {
+    const h = e.target.closest('.hand'); if (!h) return; e.preventDefault(); h.classList.remove('over');
+    if (dragData && dragData.type === 'cell') { const i = dragData.i; dragData = null; unsummon(i); }
+  });
   document.addEventListener('drop', e => {
     const c = e.target.closest('.cell'); if (!c) return; e.preventDefault(); c.classList.remove('over');
     let data; try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch (_) { return; }
@@ -1042,7 +1077,7 @@ function renderGrid(o) {
         `<div class="unit ${o} ${u.st.stun ? 'stunned' : ''} ${u.acted ? 'acted' : ''}" ${drag} data-view="${o}:${i}" style="--el:${COL[m.element]}">
         <span class="base"></span><img class="art" src="${artImg(u.id)}" alt="${esc(m.name)}" draggable="false">
         <span class="uname"><img src="${elIcon(m.element)}" alt="">${esc(m.name)}</span>
-        ${isTaunt(u) ? '<span class="kwt" title="Khiêu khích">🛡</span>' : ''}
+        <img class="roleic" src="assets/icons/roles/${m.coc_role}.png" alt="${esc(m.role5)}" title="${esc(m.role5)}${isTaunt(u) ? ' · Khiêu khích' : ''}">
         ${tokensHtml(u)}${badge}
         <div class="ov">${hpLine(u).html}</div>
         ${tauntUp.has(i) ? '<span class="tauntlab">🛡 Khiêu khích</span>' : ''}${covered.has(i) ? '<span class="covlab">được che</span>' : ''}
@@ -1061,8 +1096,8 @@ function renderGrid(o) {
 /** Hàng xí ngầu giữa bàn + 3 ô nút trên bàn (Thảy / Kết thúc lượt / Gợi ý) */
 function renderTray(animDice) {
   const el = $('#tray'), sR = $('#slotRoll'), sE = $('#slotEnd'), sH = $('#slotHint');
-  const canCancel = !!(pendingPick && S.assignCtx && !S.assignCtx.confirmed);
-  $('#slotCancel').innerHTML = `<button class="btn dark" data-act="cancelassign" ${canCancel ? '' : 'disabled'} title="Huỷ gán: trả xí ngầu về khay (hoặc nhấn Esc)"><b>↶</b>Huỷ gán</button>`;
+  const canCancel = !!((pendingPick && ((S.assignCtx && !S.assignCtx.confirmed) || S.beamKind === 'nrg')) || diePick);
+  $('#slotCancel').innerHTML = `<button class="btn dark" data-act="cancelassign" ${canCancel ? '' : 'disabled'} title="Huỷ gán xí ngầu / huỷ thao tác năng lượng (hoặc nhấn Esc)"><b>↶</b>Huỷ gán</button>`;
   $('#slotCancel').classList.toggle('on', canCancel);
   const btn = (act, ico, txt, cls, on, tip) => `<button class="btn ${cls}" data-act="${act}" ${on ? '' : 'disabled'} ${tip ? `title="${esc(tip)}"` : ''}><b>${ico}</b>${txt}</button>`;
   sH.innerHTML = btn('hint', '💡', 'Gợi ý', 'ghost', S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over, 'Trợ lý gợi ý nước đi');
@@ -1078,7 +1113,7 @@ function renderTray(animDice) {
     const blank = o === 'P' && !d.used && !nomon && !activators('P', d, s.dice).length;
     const drag = o === 'P' && !d.used ? `draggable="true" data-drag='${JSON.stringify({ type: 'die', di: k })}'` : '';
     const anim = (animDice && d.anim !== false) ? ' rolling' : ''; d.anim = false;
-    const tip = d.toE ? 'đã thành ✦' : nomon ? 'không có quái cùng màu → thành ✦ khi bạn bắt đầu gán' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
+    const tip = d.toE ? 'đã thành ✦' : nomon ? 'không có quái cùng màu → tự thành ✦ cuối bước Gán (khi Kết thúc lượt), hoặc bấm +✦ để đổi ngay' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
     return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}<img class="eic" src="${elIcon(d.el)}" alt="">${d.toE ? '<span class="dtag">✦</span>' : (!d.used && o === 'P' && nomon && !T().noEnergy ? `<button class="dtag" data-toenergy="${k}" title="Bấm: đổi viên này thành 1 ✦ ngay">+✦</button>` : '')}</div>`;
   }).join('');
   const myTurn = o === 'P' && !S.busy;
@@ -1086,7 +1121,7 @@ function renderTray(animDice) {
   if (o === 'B') { el.innerHTML = s.dice.length ? `<div class="dice">${dice}</div>` : `<span class="note"><b>Máy</b> đang chơi…</span>`; sR.innerHTML = btn('roll', '🎲', 'Thảy', 'primary', false); return; }
   if (!s.rolled) {
     el.innerHTML = S.chooseColors
-      ? `<span class="note">Lượt đầu: chọn <b>${S.chooseColors} màu</b>, không thảy lại</span><div class="colorpick">${EL_ORDER.map(e => `<label title="${EL_VI[e]}"><input type="checkbox" data-color="${e}" ${S.colorPick.includes(e) ? 'checked' : ''}><img src="${elIcon(e)}" alt="${EL_VI[e]}"></label>`).join('')}</div>`
+      ? `<span class="note">Lượt đầu: chọn <b>${S.chooseColors} màu</b>, không thảy lại</span><div class="colorpick">${EL_ORDER.map(e => `<button class="cpick${S.colorPick.includes(e) ? ' on' : ''}" data-cpick="${e}" title="${EL_VI[e]}"><img src="${elIcon(e)}" alt="${EL_VI[e]}"></button>`).join('')}</div>`
       : `<span class="note">Gọi dự bị trước (nếu sân còn chỗ), rồi bấm <b>Thảy</b> ←</span>`;
     sR.innerHTML = btn('roll', '🎲', 'Thảy', 'primary', myTurn);
   } else {
@@ -1140,11 +1175,10 @@ async function energyAct(id, srcEl) {
   const s = side('P'); const a = energyActions().find(x => x.id === id);
   if (!a || !a.ok || S.busy || S.turn !== 'P') { toast(a && a.why ? a.why : 'Chưa dùng được lúc này.'); return; }
   if (id === 'draw') { await drawBuilding(); return; }
-  S.beamFromRect = srcEl ? srcEl.getBoundingClientRect() : null; S.beamKind = 'nrg';
+  S.beamFromRect = srcEl ? srcEl.getBoundingClientRect() : null; S.beamKind = 'nrg'; S.nrgCancelled = false;
   try { await energyActInner(id, s); } finally { S.beamFromRect = null; S.beamKind = null; stopBeam(); render(); }
 }
 async function energyActInner(id, s) {
-  lockDead('P');
   if (id === 'reroll') {
     const sel = s.dice.filter(d => d.sel && !d.used);
     const d = sel.length === 1 ? sel[0] : await pickDie('1 ✦ · Thảy lại 1 xí ngầu');
@@ -1156,7 +1190,7 @@ async function energyActInner(id, s) {
   } else if (id === 'move') {
     S.busy = true;
     const r = await playerChooser({ o: 'P', side: 'P', effect: { k: 'mv', printed: 'quái muốn dời' }, opts: monsOf('P').map(i => [i]), pick: 1, label: '2 ✦ · Dời quái (1/2)', ctx: {} });
-    if (r && r.length) {
+    if (r && r.length && !S.nrgCancelled) {
       const empty = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter(i => !s.grid[i]);
       const r2 = await playerChooser({ o: 'P', side: 'P', effect: { k: 'mv', printed: 'ô trống' }, opts: empty.map(i => [i]), pick: 1, label: '2 ✦ · Dời quái (2/2)', ctx: {} });
       if (r2 && r2.length) { const u = s.grid[r[0]]; s.grid[r2[0]] = u; s.grid[r[0]] = null; spend('P', 2, `dời ${uName(u)} sang ${ROW_VI[rowOf(r2[0])]}-${colOf(r2[0]) + 1}`); }
@@ -1189,7 +1223,6 @@ function deckPopover() {
 async function drawBuilding() {
   const s = side('P'); const pop = document.getElementById('deckpop'); if (pop) pop.remove();
   const a = energyActions().find(x => x.id === 'draw'); if (!a || !a.ok || S.busy || S.turn !== 'P') { toast(a && a.why ? a.why : 'Chưa rút được lúc này.'); return; }
-  lockDead('P');
   S.busy = true;
   const did = S.bldDeck.pop(); spend('P', 2, `rút Công trình <b>${esc(BLD[did].name)}</b>`); s.drew = true;
   render();
@@ -1290,7 +1323,8 @@ function renderViewerInner(v, el) {
   if (m.threshold) sp.push(`<li><b>Ngưỡng ≤${m.threshold.at} ❤ · ${esc(m.threshold.name)}</b> ${AUTO} — mỗi lần ❤ tụt xuống ≤${m.threshold.at}: ${m.threshold.effects.map(e => esc(fxText(e))).join(', ')} ${run('run:thr', 'Chạy')}</li>`);
   if (m.deathwish) sp.push(`<li><b>Di nguyện · ${esc(m.deathwish.name)}</b> ${AUTO} — khi bị hạ: ${m.deathwish.effects.map(e => esc(fxText(e))).join(', ')}</li>`);
   if (m.trait_bot) { const t = m.trait_bot; sp.push(`<li><b>Đặc tính · ${esc(t.n)}</b> ${t.k === 'gifted' ? (u.giftUsed ? '<em class="auto">đã dùng</em>' : '<em class="auto">hỏi khi gán xí ngầu</em>') : AUTO} — ${esc(t.text)} ${t.k === 'gifted' && v.o ? run('gift', u.giftUsed ? 'Đánh dấu chưa dùng' : 'Đánh dấu đã dùng') : ''}</li>`); }
-  el.innerHTML = `<img class="big" src="${monImg(u.id)}" alt="${esc(m.name)}">
+  const undo = v.o === 'P' && v.i != null && canUnsummon(v.i) ? `<button class="btn sm" data-unsummon="${v.i}" style="margin-bottom:6px">↶ Trả về vách che</button>` : '';
+  el.innerHTML = `<img class="big" src="${monImg(u.id)}" alt="${esc(m.name)}">${undo}
     <p style="margin:0 0 6px"><b>${esc(m.name)}</b> · ${EL_VI[m.element]} · ${esc(m.role5)} · ${m.price} 🍇${u.acted ? ' · <i>đã kích hoạt lượt này</i>' : ''}</p>${sp.length ? `<ul class="special">${sp.join('')}</ul>` : ''}${ctl}`;
 }
 const TG_VI = { one: '1 địch', other: '1 địch khác', anyE: '1 địch bất kỳ', adjE: 'địch kề', three: '3 địch', row: '1 hàng', col: '1 cột', cross: 'đánh lan', all: 'cả sân địch', self: 'mình', ally: '1 đồng đội', front: '1 đồng đội hàng trước', adj: 'đồng đội kề', selfadj: 'mình + kề', team: 'cả đội', deadA: '1 đồng đội bị hạ' };
@@ -1302,6 +1336,9 @@ function bindUI() {
     const t = e.target;
     if (t.closest('[data-close]')) { closeModal(); return; }
     if (t.closest('[data-unpin]')) { viewPin = false; hideViewer(true); return; }
+    const us = t.closest('[data-unsummon]'); if (us) { unsummon(+us.dataset.unsummon); return; }
+    const cp = t.closest('[data-cpick]');
+    if (cp && S && S.chooseColors) { const el = cp.dataset.cpick; if (S.colorPick.includes(el)) S.colorPick = S.colorPick.filter(x => x !== el); else if (S.colorPick.length >= S.chooseColors) toast(`Chỉ chọn ${S.chooseColors} màu — bấm lại 1 màu đã chọn để bỏ.`); else S.colorPick.push(el); renderTray(); return; }
     const te = t.closest('[data-toenergy]'); if (te) { e.stopPropagation(); dieToEnergy(+te.dataset.toenergy); return; }
     const dp = t.closest('[data-diepick]'); if (dp) { endDiePick(null); return; }
     const rc = t.closest('[data-recolor]'); if (rc) { endDiePick(rc.dataset.recolor); return; }
@@ -1332,6 +1369,7 @@ function bindUI() {
       } else if (o === 'P' && side('P').grid[i] && (S.phase === 'place' || (S.turn === 'P' && !S.busy))) picked = { type: 'cell', i };
       render(); return;
     }
+    if (picked && picked.type === 'cell' && t.closest('.hand')) { const i = picked.i; picked = null; unsummon(i); return; }
     const res = t.closest('[data-res]'); if (res) { const uid = +res.dataset.res; picked = picked && picked.uid === uid ? null : { type: 'res', uid }; viewSel = 'r:' + uid; render(); return; }
     const bh = t.closest('[data-bldh]'); if (bh) { const uid = +bh.dataset.bldh; picked = { type: 'bld', uid }; viewSel = 'b:' + uid; render(); return; }
     const view = t.closest('[data-view]'); if (view) { viewPin = true; viewSel = view.dataset.view; viewAnchor = view; renderViewer(); return; }
@@ -1355,6 +1393,7 @@ function bindUI() {
   });
   $('#btnNew').onclick = () => setupModal();
   $('#btnRules').onclick = () => rulesModal();
+  $('#btnCards').onclick = () => { if (D) cardsModal(); };
   addEventListener('resize', alignBackground); setTimeout(alignBackground, 50);
   sparkLines();
   $('#btnEnd').onclick = () => endSession();
@@ -1367,7 +1406,7 @@ function doAct(a) {
     case 'reroll': rerollSelected(false); break;
     case 'endturn': endPlayerTurn(); break;
     case 'hint': playerHint(); break;
-    case 'cancelassign': if (pendingPick && S.assignCtx && !S.assignCtx.confirmed) finishPick(CANCEL); break;
+    case 'cancelassign': cancelAction(); break;
     case 'ready': startGame(); break;
     case 'newgame': closeModal(); setupModal(); break;
     case 'dlstats': download('karian-stats.json', loadStats()); break;
@@ -1498,6 +1537,22 @@ function startGame() {
   log(`Lật thẻ! ${who(S.first)} đi trước${T().noEnergy ? '' : `; ${who(second)} +1 ✦`}.`, null);
   ['P', 'B'].forEach(o => monsOf(o).forEach(i => log(`${who(o)}: ${uName(side(o).grid[i])} ở ${ROW_VI[rowOf(i)]}-${colOf(i) + 1}`, o)));
   beginTurn();
+}
+/** Danh sách lá bài: 41 quái (theo hệ) + 16 Công trình & Xe; bấm lá để xem lớn */
+function cardsModal(tab = 'mon') {
+  const T2 = [['mon', `Quái (${D.monsters.length})`], ['bld', `Công trình & Xe (${D.buildings.length})`]];
+  const body = tab === 'mon'
+    ? EL_ORDER.map(e => `<h4><img src="${elIcon(e)}" style="width:20px;vertical-align:-4px" alt=""> ${EL_VI[e]} · ${D.monsters.filter(m => m.element === e).length} quái</h4><div class="cardlist">${D.monsters.filter(m => m.element === e).sort((a, b) => a.print_no - b.print_no).map(m => `<button class="cl" data-cl="${monImg(m.id)}" title="${esc(m.name)} · ${esc(m.role5)} · ${m.price} 🍇"><img src="${monImg(m.id)}" alt="${esc(m.name)}" loading="lazy"></button>`).join('')}</div>`).join('')
+    : ['house', 'vehicle'].map(k => `<h4>${k === 'house' ? '🏠 Nhà' : '🚌 Xe'} · ${D.buildings.filter(b => b.kind === k).length} lá</h4><div class="cardlist">${D.buildings.filter(b => b.kind === k).map(b => `<button class="cl" data-cl="${bldImg(b.id)}" title="${esc(b.name)} — ${esc(b.text_vn)}"><img src="${bldImg(b.id)}" alt="${esc(b.name)}" loading="lazy"></button>`).join('')}</div>`).join('');
+  openModal(`<h2>Danh sách lá bài</h2><div class="opts cltabs">${T2.map(([k, n]) => `<button class="opt" data-cltab="${k}" aria-pressed="${k === tab}"><b>${n}</b></button>`).join('')}</div>${body}
+    <div class="clzoom" id="clzoom" hidden></div><div class="foot"><button class="btn primary" data-close>Đóng</button></div>`);
+  const mc = $('#modalCard');
+  mc.onclick = e => {
+    const tb = e.target.closest('[data-cltab]'); if (tb) { cardsModal(tb.dataset.cltab); return; }
+    const c = e.target.closest('[data-cl]'), z = $('#clzoom');
+    if (c) { z.innerHTML = `<img src="${c.dataset.cl}" alt="">`; z.hidden = false; return; }
+    if (e.target.closest('#clzoom')) z.hidden = true;
+  };
 }
 function rulesModal() {
   const refs = ['Luật nhanh', 'Trạng thái - từ khóa', 'Kỹ năng đặc biệt', 'Đặc tính', '5 vai trò', 'Chọn đội · Draft', 'Ván 0 · ván đầu tiên', 'Công trình - Xe ①', 'Công trình - Xe ②'];

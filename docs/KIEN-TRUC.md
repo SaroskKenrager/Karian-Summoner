@@ -194,7 +194,7 @@ Mỗi lần vẽ, ô tự đọc `FX`, gắn lớp `fx-hit` và đặt `--fxd` =
 | dải sáng `#beam` | chọn mục tiêu cho ✦ | đường trắng liền "thở" từ nút ✦ tới con trỏ; đầu là vòng tròn trắng nét đứt xoay, bắt dính vào ô hợp lệ |
 | dải vàng `.beam.aim` | chọn / xác nhận mục tiêu kỹ năng | như dải năng lượng nhưng vàng, to hơn; đầu là vòng tròn vàng nét đứt |
 | `.sprite` + `orbpop` | đổi viên xí ngầu thành ✦ (bấm "+✦" hoặc tự động ở bước Gán) | viên bung thành tinh linh sáng, bay về ô năng lượng, viên năng lượng phóng to rồi sáng |
-| `koFly` + `.mist` | quái bị hạ | nhún lên, xoay 1 vòng, bay về khu chiến lợi phẩm của bên hạ, bung sương rồi hiện thành lá bài |
+| `koFly` + `.mist` | quái bị hạ | nhún lên, xoay 1 vòng rồi xoay thêm 1 vòng khi bay về khu chiến lợi phẩm của bên hạ, bung sương rồi hiện thành lá bài |
 | `.flysmall` | xe dùng xong | thẻ xe bay về khu Công trình & Xe, nằm ở mục "Đã dùng" (xám) |
 | `fx-ko` | quái bị hạ | ảnh quái xám đi, nghiêng và rơi mờ dần |
 | `acting` | quái đang ra đòn | ảnh quái nhún lên xuống |
@@ -249,7 +249,7 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=7.9.0` và `script.js?v=7.9.0`
-- `script.js`: `const APP_VER = '7.9.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=8.0.0` và `script.js?v=8.0.0`
+- `script.js`: `const APP_VER = '8.0.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.
