@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '7.6.0';   // trùng với ?v= trong index.html
+const APP_VER = '7.7.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -918,9 +918,24 @@ function adjust(o, i, act) {
 
 /* ================= render ================= */
 let viewSel = null;
+/* ---------- hình nền "App Background Gemini AI" khớp với bàn chơi ----------
+ * Khoảng trống bàn cờ trong ảnh nền (ảnh gốc 2752×1536): 5 cột ô 125px từ x=1081, các hàng từ y≈228 đến 1218 (tâm y=723).
+ * Phóng ảnh nền để 125px ảnh = 1 ô của bàn chơi, đặt cột trùng cột, tâm trùng tâm → bàn chơi "nằm" đúng trong khoảng trống của rừng. */
+const BG = { w: 2752, h: 1536, tile: 125, x0: 1081, cy: 723 };
+function alignBackground() {
+  const b = document.getElementById('board'); if (!b) return;
+  if (innerWidth <= 1100) { document.body.style.backgroundSize = ''; document.body.style.backgroundPosition = ''; return; }
+  const cs = getComputedStyle(b), r = b.getBoundingClientRect();
+  const pl = parseFloat(cs.paddingLeft), pt = parseFloat(cs.paddingTop), pb = parseFloat(cs.paddingBottom);
+  const tile = (r.width - pl - parseFloat(cs.paddingRight)) / 5, gx = r.left + pl, gcy = r.top + pt + (r.height - pt - pb) / 2;
+  const k = tile / BG.tile, x = gx - BG.x0 * k, y = gcy - BG.cy * k;
+  document.body.style.backgroundSize = `${BG.w * k}px ${BG.h * k}px, cover`;
+  document.body.style.backgroundPosition = `${x}px ${y}px, center`;
+}
 function render(animDice) {
   if (!S) return;
   renderStatus(); renderSteps(); renderGrid('B'); renderGrid('P'); renderTray(animDice); renderInfo('P'); renderInfo('B'); renderHand(); renderViewer();
+  alignBackground();
 }
 const fmtTime = ms => { const t = Math.floor(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 function renderSteps() {
@@ -1305,10 +1320,11 @@ function bindUI() {
   });
   $('#btnNew').onclick = () => setupModal();
   $('#btnRules').onclick = () => rulesModal();
+  addEventListener('resize', alignBackground); setTimeout(alignBackground, 50);
   const setLog = hide => { document.body.classList.toggle('nolog', hide); $('#btnLog').textContent = hide ? '📜 Hiện nhật ký' : '📜 Ẩn nhật ký'; try { localStorage.setItem('karian_nolog', hide ? '1' : ''); } catch (_) { } };
   let hideLog = false; try { hideLog = localStorage.getItem('karian_nolog') === '1'; } catch (_) { }
   setLog(hideLog);
-  $('#btnLog').onclick = () => setLog(!document.body.classList.contains('nolog'));
+  $('#btnLog').onclick = () => { setLog(!document.body.classList.contains('nolog')); alignBackground(); };
   $('#btnEnd').onclick = () => endSession();
   setInterval(() => { if (S && S.phase === 'play' && !S.over) renderStatus(); }, 1000);
   $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && S && S.phase !== 'setup') closeModal(); });

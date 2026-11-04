@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Be+Vietnam+Pro:wght@500;600;700&display=swap" rel="stylesheet">
 <!-- ?v=… : đổi số mỗi lần cập nhật để trình duyệt tải file mới, không dùng bản cũ trong bộ nhớ đệm -->
-<link rel="stylesheet" href="style.css?v=7.6.0">
+<link rel="stylesheet" href="style.css?v=7.7.0">
 </head>
 <body>
 <header class="topbar">
@@ -39,6 +39,9 @@
        hàng 1–3 sân Máy · hàng 4 xí ngầu (+ nút Thảy / Kết thúc lượt hai bên) · hàng 5–7 sân Bạn
        góc dưới trái: Gợi ý · góc dưới phải: vòng khắc hệ -->
   <section class="board" id="board">
+    <!-- ánh nắng rọi xuống 2 vùng 3×3 (nằm dưới quái, không chặn chuột) -->
+    <div class="sunfx sunB" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="sunfx sunP" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <span class="btag btagB">🤖 Máy</span>
     <div class="grid gridB" id="gridB"></div>
     <div class="bslot slot-roll" id="slotRoll"></div>
@@ -71,6 +74,6 @@
 <div class="toast" id="toast" hidden></div>
 <div class="modal" id="modal" hidden><div class="modal-card" id="modalCard"></div></div>
 
-<script src="script.js?v=7.6.0"></script>
+<script src="script.js?v=7.7.0"></script>
 </body>
 </html>

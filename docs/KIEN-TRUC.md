@@ -109,11 +109,13 @@ Mỗi kỹ năng trong JSON là một danh sách hiệu ứng, ví dụ:
   Lưới đã đo trên ảnh gốc 1792×2400: cột 117→1677 (5 × 312px), ranh giới hàng 102·415·724·1038·1352·1674·1992·2291.
   CSS dùng `--k = --tile / 312` (1px ảnh gốc trên màn hình) nên mỗi ô sân trùng đúng 1 ô cỏ; nếu thay ảnh khác, đo lại 2 dãy số này
   (script đo: `tools/grid_detect.py <ảnh>`) rồi sửa `grid-template-rows` / `padding` của `.board`.
-- **Vùng 3×3** của Máy và Bạn là **bóng cây đổ** (vệt tối mềm + đốm nắng), không có khung viền.
+- **Vùng 3×3** của Máy và Bạn là **ánh nắng rọi xuống** (`.sunfx`): vũng nắng ấm viền mềm, tia nắng chéo trôi chậm, đốm nắng và bụi nắng bay lơ lửng; không khung viền.
+- **Hình nền** = *App Background Gemini AI* (Karian-Library) → `assets/board/app-bg.webp`. Ảnh có sẵn một khoảng trống bàn cờ
+  (ảnh gốc 2752×1536: ô 125px, 5 cột từ x=1081, tâm dọc y=723). `alignBackground()` phóng ảnh nền để 125px = 1 ô bàn chơi và đặt
+  khoảng trống trùng bàn chơi; viền ngoài bàn chơi mờ dần (`mask-image`) nên bàn và rừng liền một khối. Gọi lại mỗi lần vẽ / đổi cỡ cửa sổ.
 - Ô **↶ Huỷ gán** (đen trong mờ) dưới ô Kết thúc lượt. Mọi lần gán xí ngầu đều bật **dải vàng** chọn / xác nhận mục tiêu
   (kể cả mục tiêu tự động); đưa dải vào ô Huỷ gán (hoặc nhấn Esc) để trả xí ngầu về khay.
-- **Nền** là rừng thông vẽ từ ảnh *Pine Tree* / *Large Pine* (Karian-Library/Decoration) bằng `forest.py`
-  → `assets/board/forest.webp`.
+- Rừng thông `assets/board/forest.webp` (vẽ bằng `tools/forest.py`) chỉ còn là lớp nền dự phòng phía dưới.
 - **Bảng thông tin** (nhật ký, Máy, thứ tự lượt, Bạn, vách che) nằm xa bàn, nền trong suốt mờ (`--glass`, `backdrop-filter`).
   Nút **📜 Ẩn nhật ký** trên thanh trên cùng (trình duyệt nhớ lựa chọn).
 - **Lá bài đang xem** cố định ở góc trái trên (cột 1), **nhật ký** ngắn ngay bên dưới. Trỏ chuột vào quái / thẻ → lá bài đổi theo;
@@ -245,7 +247,7 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=7.6.0` và `script.js?v=7.6.0`
-- `script.js`: `const APP_VER = '7.6.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=7.7.0` và `script.js?v=7.7.0`
+- `script.js`: `const APP_VER = '7.7.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.
