@@ -249,7 +249,7 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=8.0.0` và `script.js?v=8.0.0`
-- `script.js`: `const APP_VER = '8.0.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=8.1.0` và `script.js?v=8.1.0`
+- `script.js`: `const APP_VER = '8.1.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.

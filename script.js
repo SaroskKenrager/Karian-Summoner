@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '8.0.0';   // trùng với ?v= trong index.html
+const APP_VER = '8.1.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -74,11 +74,11 @@ function mkUnit(id) {
 /* ================= nhật ký / UI phụ ================= */
 function log(msg, o, cls) {
   const li = document.createElement('li');
-  li.innerHTML = msg; if (o) li.classList.add(o); if (cls) li.classList.add(cls);
+  li.innerHTML = msg; fruitify(li); if (o) li.classList.add(o); if (cls) li.classList.add(cls);
   const ol = $('#log'); ol.appendChild(li); ol.scrollTop = ol.scrollHeight;
 }
 let toastT = 0;
-function toast(msg) { const t = $('#toast'); t.innerHTML = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2600); }
+function toast(msg) { const t = $('#toast'); t.innerHTML = msg; fruitify(t); t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2600); }
 function banner(html) { const b = $('#banner'); if (!html) { b.hidden = true; b.innerHTML = ''; return; } b.innerHTML = html; b.hidden = false; }
 /* ================= hiệu ứng (FX) =================
  * Bàn được vẽ lại (render) rất thường xuyên, nên hiệu ứng không gắn thẳng vào DOM mà ghi vào FX:
@@ -161,10 +161,22 @@ function lockDead(o) {
 }
 
 /* ================= xí ngầu ================= */
+/* xí ngầu: mặt màu hệ, viền đen, icon hệ khắc chìm ở giữa (màu hệ tối hơn + bóng trong), chấm trắng luôn nằm trên */
+const DIECOL = { Water: ['#3e8fe6', '#1d5aa8'], Fire: ['#ec2b46', '#9e1328'], Grass: ['#5ab83b', '#2e7a1c'], Rock: ['#a26a38', '#5f3a18'], Lightning: ['#f5a92a', '#c26a08'] };
+const GLYPH = {
+  Water: 'M50 22C50 22 29 47 29 60a21 21 0 0 0 42 0C71 47 50 22 50 22Z',
+  Fire: 'M50 20c5 13 18 20 18 37a18 18 0 0 1-36 0c0-10 7-15 10-24 4 7 4 11 8 13 3-8 2-16 0-26Z',
+  Grass: 'M27 74c-1-27 18-46 48-49 1 30-17 49-44 49Zm4-3 C44 58 54 48 66 36',
+  Rock: 'M18 72 40 34l9 14 9-18 24 42Z',
+  Lightning: 'M57 18 33 55h15l-6 27 26-38H53Z'
+};
 function dieSvg(n, el) {
   if (!n) return '';
-  const six = n === 6, fill = six ? DARK[el] : COL[el], pip = (el === 'Lightning' && !six) ? '#221b45' : '#fff';
-  return `<svg viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" rx="14" fill="${fill}"/>${PIPS[n].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="10" fill="${pip}"/>`).join('')}</svg>`;
+  const six = n === 6, [c, dk] = DIECOL[el] || [COL[el], DARK[el]], face = six ? dk : c;
+  return `<svg viewBox="0 0 100 100"><rect x="4" y="4" width="92" height="92" rx="18" fill="${face}"/><rect x="9" y="8" width="82" height="40" rx="14" fill="#fff" opacity=".1"/>`
+    + `<path d="${GLYPH[el]}" fill="${dk}" ${six ? 'opacity=".75" style="filter:brightness(.6)"' : 'opacity=".9"'} filter="url(#engrave)" ${el === 'Grass' ? 'stroke="' + dk + '" stroke-width="0"' : ''}/>`
+    + `<rect x="4" y="4" width="92" height="92" rx="18" fill="none" stroke="#221b45" stroke-width="6"/>`
+    + `${PIPS[n].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="9.5" fill="#fff"/>`).join('')}</svg>`;
 }
 const d6 = () => 1 + rnd(6);
 
@@ -1002,10 +1014,18 @@ function alignBackground() {
   document.body.style.backgroundSize = `${BG.w * kx}px ${BG.h * ky}px, cover`;
   document.body.style.backgroundPosition = `${r.left - BG.x0 * kx}px ${r.top - BG.y0 * ky}px, center`;
 }
+/** đổi emoji 🍇 trong chữ hiển thị thành icon trái cây chuẩn (GLITTER_FRUIT) */
+const FRUIT_IMG = 'assets/icons/Fruit.webp';
+function fruitify(root) {
+  if (!root) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => n.nodeValue.includes('🍇') && !n.parentNode.closest('script,style,option') ? 1 : 3 });
+  const list = []; while (w.nextNode()) list.push(w.currentNode);
+  list.forEach(t => { const f = document.createDocumentFragment(); t.nodeValue.split('🍇').forEach((part, k) => { if (k) { const im = document.createElement('img'); im.src = FRUIT_IMG; im.className = 'fi'; im.alt = 'trái cây'; f.appendChild(im); } if (part) f.appendChild(document.createTextNode(part)); }); t.replaceWith(f); });
+}
 function render(animDice) {
   if (!S) return;
   renderStatus(); renderSteps(); renderGrid('B'); renderGrid('P'); renderTray(animDice); renderInfo('P'); renderInfo('B'); renderHand(); renderViewer();
-  alignBackground();
+  alignBackground(); fruitify(document.querySelector('.layout')); fruitify($('#status'));
 }
 const fmtTime = ms => { const t = Math.floor(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 function renderSteps() {
@@ -1093,13 +1113,19 @@ function renderGrid(o) {
     return `<div class="${cls.join(' ')}" data-o="${o}" data-i="${i}"${f ? ` style="--fxd:-${Math.round(f.el)}ms"` : ''}>${inner}</div>`;
   }).join('');
 }
+const VINE = `<svg class="vine" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M2 30C10 10 22 4 34 2" fill="none" stroke="#3f7d2a" stroke-width="2.6" stroke-linecap="round"/><path d="M98 70C92 84 84 94 70 98" fill="none" stroke="#3f7d2a" stroke-width="2.6" stroke-linecap="round"/><path d="M5 40c-3 12 1 24 6 30" fill="none" stroke="#3f7d2a" stroke-width="2.2" stroke-linecap="round"/><ellipse cx="22" cy="5" rx="7" ry="3.4" transform="rotate(-25 22 5)" fill="#6cc04a" stroke="#2c5e1c" stroke-width="1.2"/><ellipse cx="4" cy="22" rx="3.2" ry="6.5" transform="rotate(15 4 22)" fill="#5bb33d" stroke="#2c5e1c" stroke-width="1.2"/><ellipse cx="84" cy="95" rx="7" ry="3.4" transform="rotate(-20 84 95)" fill="#6cc04a" stroke="#2c5e1c" stroke-width="1.2"/><ellipse cx="96" cy="80" rx="3.2" ry="6.5" transform="rotate(20 96 80)" fill="#5bb33d" stroke="#2c5e1c" stroke-width="1.2"/><ellipse cx="8" cy="58" rx="3" ry="6" fill="#6cc04a" stroke="#2c5e1c" stroke-width="1.2"/></svg>`;
 /** Hàng xí ngầu giữa bàn + 3 ô nút trên bàn (Thảy / Kết thúc lượt / Gợi ý) */
 function renderTray(animDice) {
   const el = $('#tray'), sR = $('#slotRoll'), sE = $('#slotEnd'), sH = $('#slotHint');
   const canCancel = !!((pendingPick && ((S.assignCtx && !S.assignCtx.confirmed) || S.beamKind === 'nrg')) || diePick);
   $('#slotCancel').innerHTML = `<button class="btn dark" data-act="cancelassign" ${canCancel ? '' : 'disabled'} title="Huỷ gán xí ngầu / huỷ thao tác năng lượng (hoặc nhấn Esc)"><b>↶</b>Huỷ gán</button>`;
   $('#slotCancel').classList.toggle('on', canCancel);
-  const btn = (act, ico, txt, cls, on, tip) => `<button class="btn ${cls}" data-act="${act}" ${on ? '' : 'disabled'} ${tip ? `title="${esc(tip)}"` : ''}><b>${ico}</b>${txt}</button>`;
+  const btn = (act, ico, txt, cls, on, tip) => {
+    const wood = { roll: 'teal', reroll: 'teal', endturn: 'coral', ready: 'coral', newgame: 'coral' }[act];
+    if (!wood) return `<button class="btn ${cls}" data-act="${act}" ${on ? '' : 'disabled'} ${tip ? `title="${esc(tip)}"` : ''}><b>${ico}</b>${txt}</button>`;
+    const deco = wood === 'teal' ? `<span class="wdeco dice2">${dieSvg(5, 'Fire')}${dieSvg(3, 'Lightning')}</span>` : `<span class="wdeco arrows"><svg viewBox="0 0 60 34"><path d="M4 3 26 17 4 31Z M30 3 52 17 30 31Z" fill="#d9a066" stroke="#5a3418" stroke-width="3.5" stroke-linejoin="round"/><path d="M8 8 20 17" stroke="#f3cf9a" stroke-width="3" stroke-linecap="round"/></svg></span>`;
+    return `<button class="wbtn ${wood}" data-act="${act}" ${on ? '' : 'disabled'} ${tip ? `title="${esc(tip)}"` : ''}><span class="wface">${txt}</span>${VINE}${deco}</button>`;
+  };
   sH.innerHTML = btn('hint', '💡', 'Gợi ý', 'ghost', S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over, 'Trợ lý gợi ý nước đi');
   if (S.phase === 'place') {
     el.innerHTML = `<span class="note">Kéo ${D.rules.team.on_field} quái từ <b>vách che</b> vào sân của bạn (3 hàng dưới).</span>`;
@@ -1114,7 +1140,7 @@ function renderTray(animDice) {
     const drag = o === 'P' && !d.used ? `draggable="true" data-drag='${JSON.stringify({ type: 'die', di: k })}'` : '';
     const anim = (animDice && d.anim !== false) ? ' rolling' : ''; d.anim = false;
     const tip = d.toE ? 'đã thành ✦' : nomon ? 'không có quái cùng màu → tự thành ✦ cuối bước Gán (khi Kết thúc lượt), hoặc bấm +✦ để đổi ngay' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
-    return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}<img class="eic" src="${elIcon(d.el)}" alt="">${d.toE ? '<span class="dtag">✦</span>' : (!d.used && o === 'P' && nomon && !T().noEnergy ? `<button class="dtag" data-toenergy="${k}" title="Bấm: đổi viên này thành 1 ✦ ngay">+✦</button>` : '')}</div>`;
+    return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}${d.toE ? '<span class="dtag">✦</span>' : (!d.used && o === 'P' && nomon && !T().noEnergy ? `<button class="dtag" data-toenergy="${k}" title="Bấm: đổi viên này thành 1 ✦ ngay">+✦</button>` : '')}</div>`;
   }).join('');
   const myTurn = o === 'P' && !S.busy;
   sE.innerHTML = btn('endturn', '⏭', 'Kết thúc lượt', 'warn', myTurn);
@@ -1444,7 +1470,7 @@ function endSession() {
 }
 
 /* ================= modal: thiết lập ván ================= */
-function openModal(html) { $('#modalCard').innerHTML = html; $('#modal').hidden = false; }
+function openModal(html) { $('#modalCard').innerHTML = html; $('#modal').hidden = false; fruitify($('#modalCard')); }
 function closeModal() { $('#modal').hidden = true; }
 let setup = null;
 function setupModal() {
