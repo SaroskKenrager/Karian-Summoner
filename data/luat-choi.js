@@ -78,7 +78,7 @@ const RULEBOOK = {
 <li><b>Nhà</b> chạy mỗi Đầu/Cuối lượt của bạn; xí ngầu trắng đếm số lần còn lại. Khi Nhà còn xí ngầu: cuối lượt bạn chỉ giữ tối đa <b>2 ✦</b> và <b>không đổi màu</b> được.</li>
 <li><b>Xe</b> đi 1 ô miễn phí mỗi lượt, giúp 1 lần rồi rời sân.</li>
 </ul>
-<div class="dg">bấm <b>chồng thẻ</b> cạnh bảng Năng lượng để rút. Nhà hết lượt hiện <b>0 lần kích hoạt</b>, vẫn ở lại sân và không tính vào giới hạn 2 Nhà. Xe: bấm <b>▶ Dùng xe</b> → chọn mục tiêu → hiệu ứng xong xe mới rời sân về mục "Đã dùng" (bấm Bỏ qua thì xe ở lại). Frost Coach tự chặn 1 đòn đơn vào đồng đội kề. Ở màn hình Ván mới, bật <b>Máy dùng Expansion Super</b> để Máy cũng rút &amp; dùng Công trình: Máy dùng nhiều nhất ở giữa trận (vòng 3–5), cuối trận ưu tiên giữ ✦ để đổi màu / thảy lại.</div>
+<div class="dg">bấm <b>chồng Thẻ Công Trình</b> ở góc phải trên bàn chơi để rút. Nhà hết lượt hiện <b>0 lần kích hoạt</b>, vẫn ở lại sân và không tính vào giới hạn 2 Nhà. Xe: bấm <b>▶ Dùng xe</b> → chọn mục tiêu → hiệu ứng xong xe mới rời sân về mục "Đã dùng" (bấm Bỏ qua thì xe ở lại). Frost Coach tự chặn 1 đòn đơn vào đồng đội kề. Ở màn hình Ván mới, bật <b>Máy dùng Expansion Super</b> để Máy cũng rút &amp; dùng Công trình: Máy dùng nhiều nhất ở giữa trận (vòng 3–5), cuối trận ưu tiên giữ ✦ để đổi màu / thảy lại.</div>
 
 <h4>11. Kết thúc & tính điểm</h4>
 <p>Hết 8 vòng, hoặc chỉ còn 1 bên có quái. <b>Điểm</b> = 🍇 quái đối thủ mình đã hạ + 🍇 quái mình còn sống (kể cả dự bị). <b>Hòa</b>: ai còn nhiều quái trên sân hơn thắng; vẫn bằng thì hòa.</p>

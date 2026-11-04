@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Be+Vietnam+Pro:wght@500;600;700&display=swap" rel="stylesheet">
 <!-- ?v=… : đổi số mỗi lần cập nhật để trình duyệt tải file mới, không dùng bản cũ trong bộ nhớ đệm -->
-<link rel="stylesheet" href="style.css?v=8.8.0">
+<link rel="stylesheet" href="style.css?v=8.9.0">
 </head>
 <body>
 <header class="topbar">
@@ -55,6 +55,7 @@
     <span class="btag btagP">Bạn</span>
     <div class="grid gridP" id="gridP"></div>
     <div class="bslot slot-hint" id="slotHint"></div>
+    <div class="bslot slot-deck" id="slotDeck"></div>
     <div class="wheel" id="wheel" title="Vòng khắc hệ: A → B nghĩa là A khắc B (+1 sát thương), bị khắc −1 (tối thiểu 1)"></div>
   </section>
 
@@ -80,7 +81,7 @@
 
 <!-- bộ lọc khắc chìm cho icon hệ trên xí ngầu -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="engrave" x="-20%" y="-20%" width="140%" height="140%"><feFlood flood-color="#000" flood-opacity=".55"/><feComposite in2="SourceAlpha" operator="out"/><feOffset dx="2" dy="3"/><feGaussianBlur stdDeviation="1.8"/><feComposite in2="SourceAlpha" operator="in" result="sh"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="sh"/></feMerge></filter></defs></svg>
-<script src="data/luat-choi.js?v=8.8.0"></script>
-<script src="script.js?v=8.8.0"></script>
+<script src="data/luat-choi.js?v=8.9.0"></script>
+<script src="script.js?v=8.9.0"></script>
 </body>
 </html>

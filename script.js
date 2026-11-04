@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '8.8.0';   // trùng với ?v= trong index.html
+const APP_VER = '8.9.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -1245,6 +1245,8 @@ const VINE = `<svg class="vine" viewBox="0 0 100 100" preserveAspectRatio="none"
 /** Hàng xí ngầu giữa bàn + 3 ô nút trên bàn (Thảy / Kết thúc lượt / Gợi ý) */
 function renderTray(animDice) {
   const el = $('#tray'), sR = $('#slotRoll'), sE = $('#slotEnd'), sH = $('#slotHint');
+  // chồng Thẻ Công Trình: góc phải trên của bàn chơi (khi bạn hoặc Máy dùng bản mở rộng)
+  $('#slotDeck').innerHTML = (S.buildings || S.botBld) ? `<div class="bdeck2" ${S.buildings ? 'data-deck' : ''} title="Thẻ Công Trình & Xe${S.buildings ? ' — bấm để rút (2 ✦)' : ''}"><small>Thẻ Công Trình</small><span class="stack"><img src="${BACK_B}" alt="Chồng Thẻ Công Trình"><b>${S.bldDeck.length}</b></span></div>` : '';
   const canCancel = !!((pendingPick && ((S.assignCtx && !S.assignCtx.confirmed) || S.beamKind === 'nrg')) || diePick);
   $('#slotCancel').innerHTML = `<button class="btn dark" data-act="cancelassign" ${canCancel ? '' : 'disabled'} title="Huỷ gán xí ngầu / huỷ thao tác năng lượng (hoặc nhấn Esc)"><b>↶</b>Huỷ gán</button>`;
   $('#slotCancel').classList.toggle('on', canCancel);
@@ -1299,7 +1301,7 @@ function renderInfo(o) {
     } else energy = `<div class="meters">${energyHtml(s.energy)}</div>`;
   }
   $('#info' + o).innerHTML = `<div class="who"><h3>${o === 'P' ? 'Bạn' : '🤖 Máy'}</h3><span class="fpill" title="Tổng điểm"><img src="assets/icons/Fruit.webp" alt="🍇"><b>${sc.total}</b></span></div>
-    ${o === 'P' && S.buildings ? `<div class="pwrap">${energy}<div class="bdeck" data-deck title="Chồng Công trình & Xe — bấm để rút (2 ✦)"><img src="${BACK_B}" alt="Chồng Công trình"><b>${S.bldDeck.length}</b><small>Công trình</small></div></div>` : energy}
+    ${energy}
     ${o === 'B' ? `<div class="lbl">Dự bị (úp) · ${s.reserve.length}</div><div class="handcards">${res}</div>` : ''}
     <div class="lbl lbltro">Chiến lợi phẩm <span class="fpill" title="${sc.ko} 🍇 từ quái đã hạ"><img src="assets/icons/Fruit.webp" alt="🍇"><b>${sc.ko}</b></span></div><div class="handcards trophies" id="tro${o}">${trophies}</div>`;
 }
@@ -1429,7 +1431,7 @@ function renderHand() {
     const deck = S.bldDeck.length;
     $('#bldArea').innerHTML = `<h3 style="margin-top:8px">Công trình & Xe <small>(mở rộng)</small></h3>
       <div class="handcards">${s.bldHand.map(b => `<div class="hcard" data-drag='${JSON.stringify({ type: 'bld', uid: b.uid })}' data-bldh="${b.uid}" data-view="b:${b.uid}"><img src="${bldImg(b.id)}" alt="${esc(BLD[b.id].name)}"></div>`).join('')}
-      ${s.bldHand.length ? '' : '<span class="muted">Bấm chồng thẻ cạnh bảng Năng lượng để rút.</span>'}</div>
+      ${s.bldHand.length ? '' : '<span class="muted">Bấm chồng Thẻ Công Trình ở góc phải trên bàn chơi để rút.</span>'}</div>
       ${s.bldUsed.length ? `<div class="lbl">Đã dùng</div><div class="handcards">${s.bldUsed.map(b => `<div class="hcard used" data-view="u:${b.uid}" title="${esc(BLD[b.id].name)} — đã dùng"><img src="${bldImg(b.id)}" alt=""></div>`).join('')}</div>` : ''}`;
   } else $('#bldArea').innerHTML = '';
 }
