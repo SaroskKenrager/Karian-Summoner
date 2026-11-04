@@ -797,3 +797,28 @@ b.dg{background:#eef9ee;border:1px solid #8fcf98;border-radius:6px;padding:0 4px
 .pwrap .bdeck b{position:static;font-size:12px}
 .pwrap .bdeck small{font-size:13px;color:var(--ink)}
 .pwrap .bdeck small::after{content:" — bấm để rút (2 ✦)";font-weight:500;color:var(--ink2);font-size:11.5px}
+/* v8.6 · màn hình Ván mới: thấy & đọc được lá bài */
+.modal-card.setupcard{max-width:1180px;padding-bottom:0}
+.setupcard h4 small{font-family:var(--body);font-weight:500;color:var(--ink2);font-size:13px}
+.setupcard .tiers .opt{flex:1 1 0;max-width:none}
+.setrow{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:start}
+.setopts{display:flex;flex-direction:column;gap:8px}.setopts .opt{max-width:none}
+.setcards{display:grid;gap:12px}
+.setcards.c3{grid-template-columns:repeat(3,minmax(0,250px))}
+.setcards.c5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.setcard{width:100%;display:block;border-radius:10px;box-shadow:0 4px 12px rgb(0 0 0/.25);cursor:zoom-in;transition:transform .15s}
+.setcard:hover{transform:translateY(-4px)}
+.settabs .opt{padding:6px 14px}
+.setinfo{background:#fff;border:2px solid var(--ink);border-radius:14px;padding:8px 12px;margin:8px 0 10px;line-height:1.45}
+.setinfo i{color:var(--ink2)}.setinfo span{color:var(--ink2);font-size:13.5px}
+.draftrow{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
+.draftrow .pickgrid{grid-template-columns:repeat(4,minmax(0,1fr));max-width:560px}
+.draftpv{border:3px dashed var(--ink);border-radius:18px;padding:10px;background:rgb(255 255 255/.5);position:sticky;top:0}
+.draftpv img{width:100%;display:block;border-radius:10px;box-shadow:0 6px 16px rgb(0 0 0/.3)}
+/* chân trang dính đáy: Ai đi trước + Huỷ / Bắt đầu luôn thấy, không phải cuộn */
+.setfoot{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin:14px -18px 0;padding:10px 18px 14px;background:linear-gradient(rgb(255 246 224/.85),var(--cream) 30%);border-top:2px solid rgb(34 27 69/.12)}
+.setfirst{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.setfirst b{font-family:var(--display)}
+.setfirst .opt{padding:5px 14px}
+.setfoot .foot{margin:0}
+@media (max-width:900px){.setrow,.draftrow{grid-template-columns:1fr}.setcards.c5{grid-template-columns:repeat(3,minmax(0,1fr))}.draftpv{position:static;max-width:300px}}

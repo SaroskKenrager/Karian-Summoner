@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '8.5.0';   // trùng với ?v= trong index.html
+const APP_VER = '8.6.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -28,9 +28,9 @@ window.addEventListener('error', e => ERRORS.push({ t: Date.now(), msg: e.messag
 window.addEventListener('unhandledrejection', e => ERRORS.push({ t: Date.now(), msg: String(e.reason && e.reason.stack || e.reason) }));
 const PIPS = { 1: [[50, 50]], 2: [[29, 29], [71, 71]], 3: [[27, 27], [50, 50], [73, 73]], 4: [[29, 29], [71, 29], [29, 71], [71, 71]], 5: [[27, 27], [73, 27], [50, 50], [27, 73], [73, 73]], 6: [[30, 25], [70, 25], [30, 50], [70, 50], [30, 75], [70, 75]] };
 const TIERS = {
-  van0: { name: 'Ván 0', desc: '3 quái in sẵn, 3 xí ngầu đúng màu đội, không khắc hệ, không trạng thái, không dự bị, không ✦.', firstDice: 2, noElem: true, noStatus: true, noEnergy: true, noReroll: true, teamDice: true, buildings: false, energyActs: false },
-  starter: { name: 'Tập chơi', desc: '1 bộ khởi động 15 🍇 / người. Chưa dùng đổi màu & dời quái.', firstDice: 3, buildings: false, energyActs: false },
-  standard: { name: 'Chuẩn', desc: 'Draft A: rút 2 thẻ mỗi chồng giá (8 thẻ), giữ đội ≤ 15 🍇. Đủ luật + Công trình (mở rộng).', firstDice: 3, buildings: true, energyActs: true }
+  van0: { name: 'Ván 0 (Dành cho người mới)', desc: '3 quái in sẵn, 3 xí ngầu đúng màu đội, không khắc hệ, không trạng thái, không dự bị, không ✦.', firstDice: 2, noElem: true, noStatus: true, noEnergy: true, noReroll: true, teamDice: true, buildings: false, energyActs: false },
+  starter: { name: 'Tập chơi (Dùng bộ soạn sẵn)', desc: '1 bộ khởi động 15 🍇 / người. Chưa dùng đổi màu & dời quái.', firstDice: 3, buildings: false, energyActs: false },
+  standard: { name: 'Chuẩn (Đầy đủ chức năng)', desc: 'Draft A: rút 2 thẻ mỗi chồng giá (8 thẻ), giữ đội ≤ 15 🍇. Đủ luật + Công trình (mở rộng).', firstDice: 3, buildings: true, energyActs: true }
 };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const $ = s => document.querySelector(s);
@@ -1529,7 +1529,7 @@ function endSession() {
 }
 
 /* ================= modal: thiết lập ván ================= */
-function openModal(html) { $('#modalCard').innerHTML = html; $('#modal').hidden = false; fruitify($('#modalCard')); }
+function openModal(html) { $('#modalCard').classList.remove('setupcard'); $('#modalCard').onmouseover = null; $('#modalCard').innerHTML = html; $('#modal').hidden = false; fruitify($('#modalCard')); }
 function closeModal() { $('#modal').hidden = true; }
 let setup = null;
 function setupModal() {
@@ -1546,24 +1546,41 @@ function drawSetup() {
   const st = setup;
   const tierBtns = Object.entries(TIERS).map(([k, t]) => `<button class="opt" data-tier="${k}" aria-pressed="${st.tier === k}"><b>${t.name}</b><small>${t.desc}</small></button>`).join('');
   let team = '';
+  const cardImgs = ids => ids.map(id => `<img class="setcard" src="${monImg(id)}" alt="${esc(MON[id].name)}" data-cl="${monImg(id)}" title="${esc(MON[id].name)} · bấm để xem lớn">`).join('');
   if (st.tier === 'van0') {
-    team = `<h4>Đội của bạn (Máy dùng đội còn lại)</h4><div class="opts">${D.van0.map((t, k) => `<button class="opt" data-van0="${k}" aria-pressed="${st.van0 === k}"><b>Đội ${esc(t.name)}</b><small>${t.members.join(' · ')}</small></button>`).join('')}</div>`;
+    const t = D.van0[st.van0];
+    team = `<h4>Đội của bạn <small>(Máy dùng đội còn lại)</small></h4>
+      <div class="setrow"><div class="setopts">${D.van0.map((x, k) => `<button class="opt" data-van0="${k}" aria-pressed="${st.van0 === k}"><b>Đội ${esc(x.name)}</b><small>${x.members.join(' · ')}</small></button>`).join('')}</div>
+      <div class="setcards c3">${cardImgs(t.members)}</div></div>`;
   } else if (st.tier === 'starter') {
-    team = `<h4>Bộ khởi động của bạn (Máy chọn ngẫu nhiên 1 bộ khác)</h4><div class="opts">${D.starter_sets.map(s => `<button class="opt" data-set="${s.id}" aria-pressed="${st.set === s.id}"><b>${esc(s.name)}</b><small>${esc(s.theme)}</small><br><small>${s.members.join(' · ')}</small></button>`).join('')}</div>`;
+    const x = D.starter_sets.find(z => z.id === st.set) || D.starter_sets[0];
+    const tot = sum(x.members.map(id => MON[id].price));
+    team = `<h4>Bộ khởi động của bạn <small>(Máy chọn ngẫu nhiên 1 bộ khác)</small></h4>
+      <div class="opts settabs">${D.starter_sets.map(z => `<button class="opt" data-set="${z.id}" aria-pressed="${st.set === z.id}"><b>${esc(z.name)}</b></button>`).join('')}</div>
+      <div class="setinfo"><b>${esc(x.name)}</b> <i>${esc(x.name_en || '')}</i> · ${tot} 🍇 · ${x.members.length} quái · thắng TB ${Math.round((x.wr_avg || 0) * 1000) / 10}%<br><span>${esc(x.theme)}</span></div>
+      <div class="setcards c5">${cardImgs(x.members)}</div>`;
   } else {
     if (!st.draft) st.draft = draftA();
     const tot = sum(st.picks.map(id => MON[id].price));
+    const pv = st.preview && st.draft.P.includes(st.preview) ? st.preview : (st.picks[st.picks.length - 1] || st.draft.P[0]);
     team = `<h4>Draft A · 8 thẻ bạn rút được — chọn ${D.rules.team.min_monsters}–${D.rules.team.max_monsters} quái, tổng ≤ ${D.rules.modes['1v1'].fund} 🍇 <span class="pill">${tot} / ${D.rules.modes['1v1'].fund} 🍇 · ${st.picks.length} quái</span> <button class="btn sm" data-redraft>Rút lại</button></h4>
-      <div class="pickgrid">${st.draft.P.map(id => `<div class="pc ${st.picks.includes(id) ? 'on' : (tot + MON[id].price > 15 ? 'off' : '')}" data-pickm="${id}"><img src="${monImg(id)}" alt="${id}"></div>`).join('')}</div>
-      <label style="display:block;margin-top:8px"><input type="checkbox" data-bld ${st.buildings ? 'checked' : ''}> Dùng bản mở rộng Công trình & Xe (cho bạn; Máy chưa dùng)</label>`;
+      <div class="draftrow"><div><div class="pickgrid">${st.draft.P.map(id => `<div class="pc ${st.picks.includes(id) ? 'on' : (tot + MON[id].price > 15 ? 'off' : '')}" data-pickm="${id}" data-pv="${id}"><img src="${monImg(id)}" alt="${id}"></div>`).join('')}</div>
+      <p class="muted" style="margin:6px 0 0">Trỏ chuột vào lá để xem lớn bên phải · bấm để chọn / bỏ chọn.</p>
+      <label style="display:block;margin-top:8px"><input type="checkbox" data-bld ${st.buildings ? 'checked' : ''}> Dùng bản mở rộng Công trình & Xe (cho bạn; Máy chưa dùng)</label></div>
+      <div class="draftpv"><img id="draftPv" src="${monImg(pv)}" alt=""></div></div>`;
   }
   openModal(`<h2>Ván mới · 1v1 với Máy</h2>
-    <h4>Tầng chơi</h4><div class="opts">${tierBtns}</div>${team}
-    <h4>Ai đi trước?</h4><div class="opts">${[['random', 'Ngẫu nhiên'], ['P', 'Bạn'], ['B', 'Máy']].map(([k, n]) => `<button class="opt" data-first="${k}" aria-pressed="${st.first === k}"><b>${n}</b></button>`).join('')}</div>
-    <div class="foot">${S && S.phase !== 'setup' ? '<button class="btn" data-close>Hủy</button>' : ''}<button class="btn primary" data-go>Bắt đầu đặt quân →</button></div>`);
+    <h4>Tầng chơi</h4><div class="opts tiers">${tierBtns}</div>${team}
+    <div class="setfoot"><div class="setfirst"><b>Ai đi trước?</b>${[['random', 'Ngẫu nhiên'], ['P', 'Bạn'], ['B', 'Máy']].map(([k, n]) => `<button class="opt" data-first="${k}" aria-pressed="${st.first === k}"><b>${n}</b></button>`).join('')}</div>
+    <div class="foot">${S && S.phase !== 'setup' ? '<button class="btn" data-close>Hủy</button>' : ''}<button class="btn primary" data-go>Bắt đầu đặt quân →</button></div></div>
+    <div class="clzoom" id="clzoom" hidden></div>`);
+  $('#modalCard').classList.add('setupcard');
+  $('#modalCard').onmouseover = e => { const v = e.target.closest('[data-pv]'); if (v && st.preview !== v.dataset.pv) { st.preview = v.dataset.pv; const im = $('#draftPv'); if (im) im.src = monImg(st.preview); } };
   const mc = $('#modalCard');
   mc.onclick = e => {
     const t = e.target;
+    const cz = t.closest('[data-cl]'), z = $('#clzoom'); if (cz && z) { z.innerHTML = `<img src="${cz.dataset.cl}" alt="">`; z.hidden = false; return; }
+    if (t.closest('#clzoom')) { z.hidden = true; return; }
     const b = t.closest('[data-tier]'); if (b) { st.tier = b.dataset.tier; drawSetup(); return; }
     const s2 = t.closest('[data-set]'); if (s2) { st.set = s2.dataset.set; drawSetup(); return; }
     const v0 = t.closest('[data-van0]'); if (v0) { st.van0 = +v0.dataset.van0; drawSetup(); return; }
