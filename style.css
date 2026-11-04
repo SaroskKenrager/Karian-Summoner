@@ -751,9 +751,38 @@ body.dragging,body.dragging *{cursor:grabbing!important;-webkit-user-select:none
 @keyframes flyv2{0%{transform:translateY(0);opacity:0}12%,88%{opacity:1}100%{transform:translateY(100%);opacity:0}}
 @keyframes wobY{to{transform:translateY(-4px)}}
 @keyframes wobX{to{transform:translateX(4px)}}
-/* tia nắng: không trượt nền mỗi khung hình (phải vẽ lại blur) — chỉ thở bằng opacity */
-.sunfx::after{animation:raysbreath 9s ease-in-out infinite alternate;will-change:opacity}
-.sunP::after{animation-duration:11s}
-@keyframes raysbreath{from{opacity:.65}to{opacity:.95}}
 .sunfx::before{will-change:opacity}
 .sunfx i{will-change:transform,opacity}
+
+/* v8.4 · tia nắng trôi như cũ (raysdrift) · 1 tinh linh / đường, nhỏ 1/2, lượn lệch khỏi đường nhiều hơn */
+.sunfx::after{will-change:background-position}
+.gl i::before{width:6px;height:6px;box-shadow:0 0 7px 3px rgb(255 240 170/.7)}
+.gl.h i::before{left:-3px;top:-2px;animation:wobY2 1.8s ease-in-out infinite alternate}
+.gl.v i::before{top:-3px;left:-2px;animation:wobX2 1.8s ease-in-out infinite alternate}
+@keyframes wobY2{from{transform:translateY(9px)}to{transform:translateY(-9px)}}
+@keyframes wobX2{from{transform:translateX(-9px)}to{transform:translateX(9px)}}
+/* v8.4 · sách luật */
+.brand #btnBook{margin-left:6px;font-family:var(--body);font-size:13px}
+.rb-lead{color:var(--ink2);margin:6px 0 4px}
+.rb-text h4{margin:16px 0 4px;font-size:17px;border-bottom:2px dashed rgb(34 27 69/.15);padding-bottom:2px}
+.rb-text ul,.rb-text ol{margin:4px 0;padding-left:22px;line-height:1.5}
+.rb-text p{margin:4px 0;line-height:1.5}
+div.dg{margin:6px 0 4px;background:#eef9ee;border:1.5px solid #8fcf98;border-left:5px solid #3cb371;border-radius:10px;padding:6px 10px;font-size:13.5px;line-height:1.45}
+div.dg::before{content:"🎮 Bản digital";display:block;font-family:var(--display);font-weight:800;font-size:12px;color:#1f7a3a}
+b.dg{background:#eef9ee;border:1px solid #8fcf98;border-radius:6px;padding:0 4px;font-size:.92em}
+.rb-turn{margin:18px 0 6px;font-size:18px;color:#b8461a}
+.rb-step{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:center;margin:8px 0;background:#fff;border:2px solid rgb(34 27 69/.12);border-radius:14px;padding:8px}
+.rb-step img{width:100%;display:block;border-radius:10px}
+.rb-img{border:0;padding:0;background:none;cursor:zoom-in}
+.rb-step>div{line-height:1.5;font-size:14px}
+.rb-n{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;font-family:var(--display);margin-right:4px}
+.rb-faq details{background:#fff;border:2px solid rgb(34 27 69/.12);border-radius:12px;padding:8px 12px;margin:8px 0}
+.rb-faq summary{cursor:pointer;font-weight:700;font-size:15px}
+.rb-faq p{margin:6px 0 2px;line-height:1.5;color:var(--ink2)}
+@media (max-width:800px){.rb-step{grid-template-columns:1fr}}
+.rb-step{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:1560px){
+  .brand small{display:none}
+  .topbar .status{gap:5px}.topbar .status .pill{font-size:12.5px;padding:1px 8px}
+  .topbar .tools .btn,.brand .btn{padding:4px 9px;font-size:12.5px}
+}

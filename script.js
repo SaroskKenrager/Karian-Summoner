@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '8.3.0';   // trùng với ?v= trong index.html
+const APP_VER = '8.4.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -136,27 +136,36 @@ function flyEnergy(fromRect, orbIndex) {
   setTimeout(() => { const o2 = document.querySelectorAll('#infoP .energy img')[Math.min(orbIndex, 2)]; if (o2) { o2.classList.remove('pop'); void o2.offsetWidth; o2.classList.add('pop'); } }, 1250);
 }
 /** người chơi bấm "+✦": đổi ngay 1 viên không có quái cùng màu thành ✦ */
+/** Viên "dư": không thể gán một cách khách quan — không có quái cùng màu trên sân, hoặc mọi quái cùng màu đang Choáng / đã kích hoạt lượt này.
+ *  (Mặt trống của quái còn dùng được thì KHÔNG phải viên dư: luật in "mặt trống không đổi thành ✦".) */
+function spareDie(o, d) {
+  if (!d || d.used) return false;
+  return !monsOf(o).some(i => { const u = side(o).grid[i]; return M(u).element === d.el && !u.st.stun && !u.acted; });
+}
+function spareWhy(o, d) {
+  const same = monsOf(o).map(i => side(o).grid[i]).filter(u => M(u).element === d.el);
+  return !same.length ? 'không có quái cùng màu' : same.every(u => u.st.stun) ? 'quái cùng màu đang Choáng' : 'quái cùng màu đã kích hoạt / Choáng';
+}
 function dieToEnergy(k) {
   const s = side('P'), d = s.dice[k];
-  if (!d || d.used || S.busy || S.turn !== 'P' || T().noEnergy || monsOf('P').some(i => M(s.grid[i]).element === d.el)) return;
+  if (!d || d.used || S.busy || S.turn !== 'P' || T().noEnergy || !spareDie('P', d)) return;
   const el = document.querySelector(`.die[data-die="${k}"]`), rect = el && el.getBoundingClientRect();
   d.used = true; d.toE = true;
   const b = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + 1); S.stats.P.gained += s.energy - b;
-  log(`Bạn đổi viên ${EL_VI[d.el]} ${d.face} (không có quái cùng màu) → ${s.energy > b ? '+1 ✦' : '✦ đã đầy 3, bỏ'}`, 'P');
+  log(`Bạn đổi viên ${EL_VI[d.el]} ${d.face} (${spareWhy('P', d)}) → ${s.energy > b ? '+1 ✦' : '✦ đã đầy 3, bỏ'}`, 'P');
   render(); flyEnergy(rect, Math.max(0, s.energy - 1));
 }
 function lockDead(o) {
   const s = side(o); if (!s.rolled || s.locked) return 0;
   s.locked = true; if (T().noEnergy) return 0;
-  const els = new Set(monsOf(o).map(i => M(s.grid[i]).element));
   const needs6 = new Set(); monsOf(o).forEach(i => M(s.grid[i]).skills.forEach(sk => { if (sk.multicolor === 'any6') needs6.add('*'); else (sk.multicolor || []).forEach(([e]) => needs6.add(e)); }));
-  const dead = s.dice.filter(d => !d.used && !els.has(d.el) && !(d.face === 6 && (needs6.has(d.el) || needs6.has('*'))));
+  const dead = s.dice.filter(d => spareDie(o, d) && !(d.face === 6 && (needs6.has(d.el) || needs6.has('*'))));
   if (!dead.length) return 0;
   const rects = o === 'P' ? dead.map(d => { const el = document.querySelector(`.die[data-die="${s.dice.indexOf(d)}"]`); return el && el.getBoundingClientRect(); }) : [];
   dead.forEach(d => { d.used = true; d.toE = true; });
   const b = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + dead.length); S.stats[o].gained += s.energy - b;
   if (o === 'P') setTimeout(() => rects.forEach((r, k) => setTimeout(() => flyEnergy(r, Math.min(2, b + k)), k * 160)), 0);
-  log(`${who(o)}: ${dead.length} viên không có quái cùng màu (${dead.map(d => EL_VI[d.el]).join(', ')}) → +${s.energy - b} ✦${s.energy - b < dead.length ? ' (đầy 3, phần dư bỏ)' : ''}`, o);
+  log(`${who(o)}: ${dead.length} viên dư (${dead.map(d => EL_VI[d.el] + ': ' + spareWhy(o, d)).join('; ')}) → +${s.energy - b} ✦${s.energy - b < dead.length ? ' (đầy 3, phần dư bỏ)' : ''}`, o);
   render(); return dead.length;
 }
 
@@ -873,7 +882,7 @@ async function botTurn() {
     plan = planBot(s.dice);
   }
   // cuối bước Gán: viên dư (không có quái cùng màu) mới tự hoá thành ✦
-  { const keepD = new Set(plan.flatMap(p => [p.die, ...p.extra.map(j => s.dice[j])])); keepD.forEach(d => (d.used = true)); lockDead('B'); keepD.forEach(d => (d.used = false)); }
+  { const keepD = new Set(plan.flatMap(p => [p.die, ...p.extra.map(j => s.dice[j])])); keepD.forEach(d => (d.used = true)); plan.forEach(p => (p.u.acted = true)); lockDead('B'); keepD.forEach(d => (d.used = false)); plan.forEach(p => (p.u.acted = false)); }
   plan.sort((a, b) => (M(a.u).role_ai !== 'Support') - (M(b.u).role_ai !== 'Support'));   // Hỗ trợ trước
   log(plan.length ? `Máy gán: ${plan.map(p => `${EL_VI[p.die.el]} ${p.gift ? '6 (Thiên phú)' : p.die.face} → ${uName(p.u)} (${esc(p.skill.name)})`).join(' · ')}` : 'Máy không gán được viên nào', 'B');
   await sleep(450); setStep(4);
@@ -1042,7 +1051,7 @@ const BG = { w: 2752, h: 1536, tx: 125, ty: 123.2, x0: 1081, y0: 353.8 };   // �
 function sparkLines() {
   const edges = [{ v: false, at: 0, d: 6.5, dl: 0 }, { v: true, at: 1, d: 7.5, dl: -2.5 }, { v: false, at: 1, d: 7, dl: -4.5, rev: 1 }, { v: true, at: 0, d: 8, dl: -1.2, rev: 1 }];
   document.querySelectorAll('.glines').forEach(g => {
-    g.innerHTML = edges.map(l => `<span class="gl ${l.v ? 'v' : 'h'}${l.rev ? ' rev' : ''}" style="${l.v ? `left:${l.at * 100}%;top:0;height:100%` : `top:${l.at * 100}%;left:0;width:100%`};--d:${l.d}s;--dl:${l.dl}s"><i></i><i style="animation-delay:calc(var(--dl) - ${(l.d / 2).toFixed(1)}s)"></i></span>`).join('');
+    g.innerHTML = edges.map(l => `<span class="gl ${l.v ? 'v' : 'h'}${l.rev ? ' rev' : ''}" style="${l.v ? `left:${l.at * 100}%;top:0;height:100%` : `top:${l.at * 100}%;left:0;width:100%`};--d:${l.d}s;--dl:${l.dl}s"><i></i></span>`).join('');
   });
 }
 let alignRAF = 0;
@@ -1184,11 +1193,11 @@ function renderTray(animDice) {
   const o = S.turn, s = side(o);
   const fieldEls = new Set(monsOf(o).map(i => M(s.grid[i]).element));
   const dice = s.dice.map((d, k) => {
-    const nomon = !fieldEls.has(d.el);
+    const nomon = o === 'P' ? spareDie('P', d) : !fieldEls.has(d.el);
     const blank = o === 'P' && !d.used && !nomon && !activators('P', d, s.dice).length;
     const drag = o === 'P' && !d.used ? `data-drag='${JSON.stringify({ type: 'die', di: k })}'` : '';
     const anim = (animDice && d.anim !== false) ? ' rolling' : ''; d.anim = false;
-    const tip = d.toE ? 'đã thành ✦' : nomon ? 'không có quái cùng màu → tự thành ✦ cuối bước Gán (khi Kết thúc lượt), hoặc bấm +✦ để đổi ngay' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
+    const tip = d.toE ? 'đã thành ✦' : nomon ? spareWhy('P', d) + ' → tự thành ✦ cuối bước Gán (khi Kết thúc lượt), hoặc bấm +✦ để đổi ngay' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
     return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}${d.toE ? '<span class="dtag">✦</span>' : (!d.used && o === 'P' && nomon && !T().noEnergy ? `<button class="dtag" data-toenergy="${k}" title="Bấm: đổi viên này thành 1 ✦ ngay">+✦</button>` : '')}</div>`;
   }).join('');
   const myTurn = o === 'P' && !S.busy;
@@ -1469,6 +1478,7 @@ function bindUI() {
   $('#btnNew').onclick = () => setupModal();
   $('#btnRules').onclick = () => rulesModal();
   $('#btnCards').onclick = () => { if (D) cardsModal(); };
+  $('#btnBook').onclick = () => rulebookModal();
   addEventListener('resize', scheduleAlign); setTimeout(alignBackground, 50);
   sparkLines();
   $('#btnEnd').onclick = () => endSession();
@@ -1625,6 +1635,23 @@ function cardsModal(tab = 'mon') {
   const mc = $('#modalCard');
   mc.onclick = e => {
     const tb = e.target.closest('[data-cltab]'); if (tb) { cardsModal(tb.dataset.cltab); return; }
+    const c = e.target.closest('[data-cl]'), z = $('#clzoom');
+    if (c) { z.innerHTML = `<img src="${c.dataset.cl}" alt="">`; z.hidden = false; return; }
+    if (e.target.closest('#clzoom')) z.hidden = true;
+  };
+}
+/** Sách luật 3 trang (nội dung ở data/luat-choi.js) */
+function rulebookModal(tab = 'rules') {
+  if (typeof RULEBOOK === 'undefined') { toast('Chưa tải được sách luật.'); return; }
+  const tabs = [['rules', '📖 Luật chơi'], ['turns', '🎲 Lượt mẫu'], ['faq', '❓ Hỏi đáp']];
+  const body = tab === 'rules' ? `<div class="rb-text">${RULEBOOK.rules}</div>`
+    : tab === 'turns' ? `<p class="rb-lead">2 lượt đầu của một ván thật trên bản digital (tầng Tập chơi: <b>Phi vụ Bọ Hung</b> vs Máy <b>Giấc mơ êm ái</b>). Bấm ảnh để xem lớn.</p>` + RULEBOOK.turns.map((x, k) => `${x.h ? `<h4 class="rb-turn">${x.h}</h4>` : ''}<div class="rb-step"><button class="rb-img" data-cl="assets/ui/tutorial/${x.img}.webp"><img src="assets/ui/tutorial/${x.img}.webp" alt="" loading="lazy"></button><div><b class="rb-n">${k + 1}</b> ${x.t}</div></div>`).join('')
+    : `<div class="rb-faq">${RULEBOOK.faq.map(([q, a], k) => `<details ${k === 0 ? 'open' : ''}><summary><b>${k + 1}.</b> ${q}</summary><p>${a}</p></details>`).join('')}</div>`;
+  openModal(`<h2>Sách luật Karian's Summoner</h2><div class="opts cltabs">${tabs.map(([k, n]) => `<button class="opt" data-rbtab="${k}" aria-pressed="${k === tab}"><b>${n}</b></button>`).join('')}</div>${body}
+    <div class="clzoom" id="clzoom" hidden></div><div class="foot"><button class="btn primary" data-close>Đóng</button></div>`);
+  const mc = $('#modalCard'); mc.scrollTop = 0;
+  mc.onclick = e => {
+    const tb = e.target.closest('[data-rbtab]'); if (tb) { rulebookModal(tb.dataset.rbtab); return; }
     const c = e.target.closest('[data-cl]'), z = $('#clzoom');
     if (c) { z.innerHTML = `<img src="${c.dataset.cl}" alt="">`; z.hidden = false; return; }
     if (e.target.closest('#clzoom')) z.hidden = true;

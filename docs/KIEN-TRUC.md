@@ -249,8 +249,8 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=8.3.0` và `script.js?v=8.3.0`
-- `script.js`: `const APP_VER = '8.3.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=8.4.0`, `data/luat-choi.js?v=8.4.0` và `script.js?v=8.4.0`
+- `script.js`: `const APP_VER = '8.4.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.
 
@@ -270,3 +270,13 @@ Không đặt lại `draggable="true"` cho phần tử nào, nếu không trình
 - Các việc chạy theo chuột (dải sáng, ô đích khi kéo) và việc căn ảnh nền được gộp **tối đa 1 lần mỗi khung hình**
   (`requestAnimationFrame`).
 - Ván mới dọn bộ nhớ hiệu ứng (`FX`, `HPV`).
+
+## 14. Sách luật trong game (v8.4)
+
+Nút **📖 Luật chơi** mở 3 trang, nội dung nằm riêng trong `data/luat-choi.js` (sửa chữ ở đó, không đụng `script.js`):
+- **Luật chơi**: luật v6.5 đầy đủ + ô xanh "🎮 Bản digital" ghi cách game xử lý.
+- **Lượt mẫu**: 10 ảnh chụp từ một ván thật (`assets/ui/tutorial/*.webp`) kèm chú thích.
+- **Hỏi đáp**: 10 câu hỏi.
+
+**Viên dư** (v8.4): viên không thể gán một cách khách quan — không có quái cùng màu, hoặc mọi quái cùng màu đang Choáng / đã kích hoạt
+(`spareDie()`). Có nút +✦, tự thành ✦ ở cuối bước Gán. Mặt trống của quái còn dùng được không phải viên dư.
