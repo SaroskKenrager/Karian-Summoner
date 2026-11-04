@@ -224,7 +224,7 @@ và nói điều **không** muốn (ví dụ "không lóe trắng cả màn hìn
 ## 9. Kiểm tra luật tự động (tests/rules.html)
 
 Mở `tests/rules.html` (trên máy: `http://localhost:8000/tests/rules.html`, trên GitHub Pages: `…/Karian-Summoner/tests/rules.html`).
-Trang tự chạy **33 ca kiểm** chuyển từ `Engine v6.5/tests/test_rules.py` (Karian-Library) và hiện ✅ / ❌ cho từng luật:
+Trang tự chạy **35 ca kiểm** chuyển từ `Engine v6.5/tests/test_rules.py` (Karian-Library) và hiện ✅ / ❌ cho từng luật:
 lượt 5 bước, gọi dự bị, gán xí ngầu, ✦ trần 3, khắc hệ, Cận chiến/Tầm xa, Khiêu khích/Xuyên, diện rộng, 4 trạng thái,
 điểm & hòa, Draft A, lượt đầu, Ván 0, Công trình & Xe, Charflutter hồi sinh, Ngưỡng ❤, và đủ ảnh cho mọi thẻ.
 
@@ -249,8 +249,8 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=8.9.0`, `data/luat-choi.js?v=8.9.0` và `script.js?v=8.9.0`
-- `script.js`: `const APP_VER = '8.9.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=9.0.0`, `data/luat-choi.js?v=9.0.0` và `script.js?v=9.0.0`
+- `script.js`: `const APP_VER = '9.0.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.
 

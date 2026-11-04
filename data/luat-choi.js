@@ -36,7 +36,7 @@ const RULEBOOK = {
 <li>Mặt 6 tô đậm; ★ = Tuyệt kỹ. Mặt không có trên thẻ (<b>mặt trống</b>) → không kích hoạt và không đổi thành ✦.</li>
 <li><b>Viên dư → +1 ✦</b>. Giữ tối đa <b>3 ✦</b>; nhận thêm khi đầy thì bỏ.</li>
 <li>Tiêu ✦ bất cứ lúc nào trong lượt: <b>1 ✦</b> thảy lại 1 viên · <b>2 ✦</b> +2 Khiên 1 quái · <b>2 ✦</b> dời 1 quái sang ô trống (Chuẩn) · <b>2 ✦</b> rút 1 Công trình (mở rộng) · <b>3 ✦</b> đổi màu 1 viên (Chuẩn).</li>
-<li><b>Đa sắc</b>: ô khác màu trên thẻ = viên màu đó ra đúng mặt cũng phải có để kích hoạt; ô ngũ sắc = mặt 6 của bất kỳ viên nào.</li>
+<li><b>Đa sắc</b>: ô khác màu trên thẻ = viên màu đó ra đúng mặt <b>cũng kích hoạt được</b> dòng đó (thay cho viên cùng hệ, chỉ cần 1 viên); ô ngũ sắc = mặt 6 của <b>bất kỳ</b> viên nào. Ví dụ Glimmerwing ★ <i>Lưới cầu vồng</i>: Điện 6, hoặc mặt 6 của bất kỳ hệ nào.</li>
 </ul>
 <div class="dg"><b>Viên dư</b> là viên không thể gán một cách khách quan: <b>không có quái cùng màu</b> trên sân, hoặc <b>mọi quái cùng màu đang Choáng / đã kích hoạt</b> lượt này. Viên dư có nút tím <b>+✦</b> (bấm để đổi ngay); nếu không bấm, nó tự thành ✦ ở <b>cuối bước Gán</b> (khi bạn bấm Kết thúc lượt). Viên mặt trống của quái còn dùng được thì không phải viên dư. Game nhắc nếu bạn kết thúc lượt khi còn viên gán được.</div>
 

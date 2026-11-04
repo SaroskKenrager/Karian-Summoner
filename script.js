@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '8.9.0';   // trùng với ?v= trong index.html
+const APP_VER = '9.0.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -140,6 +140,7 @@ function flyEnergy(fromRect, orbIndex) {
  *  (Mặt trống của quái còn dùng được thì KHÔNG phải viên dư: luật in "mặt trống không đổi thành ✦".) */
 function spareDie(o, d) {
   if (!d || d.used) return false;
+  if (activators(o, d, side(o).dice).length) return false;   // gán được (kể cả qua ô đa sắc) → không phải viên dư
   return !monsOf(o).some(i => { const u = side(o).grid[i]; return M(u).element === d.el && !u.st.stun && !u.acted; });
 }
 function spareWhy(o, d) {
@@ -158,8 +159,7 @@ function dieToEnergy(k) {
 function lockDead(o) {
   const s = side(o); if (!s.rolled || s.locked) return 0;
   s.locked = true; if (T().noEnergy) return 0;
-  const needs6 = new Set(); monsOf(o).forEach(i => M(s.grid[i]).skills.forEach(sk => { if (sk.multicolor === 'any6') needs6.add('*'); else (sk.multicolor || []).forEach(([e]) => needs6.add(e)); }));
-  const dead = s.dice.filter(d => spareDie(o, d) && !(d.face === 6 && (needs6.has(d.el) || needs6.has('*'))));
+  const dead = s.dice.filter(d => spareDie(o, d));
   if (!dead.length) return 0;
   const rects = o === 'P' ? dead.map(d => { const el = document.querySelector(`.die[data-die="${s.dice.indexOf(d)}"]`); return el && el.getBoundingClientRect(); }) : [];
   dead.forEach(d => { d.used = true; d.toE = true; });
@@ -190,22 +190,17 @@ function dieSvg(n, el) {
 const d6 = () => 1 + rnd(6);
 
 /** Tìm kỹ năng mà viên xí ngầu (el, face) kích hoạt trên quái u; trả về {skill, extra:[chỉ số viên phụ]} hoặc null */
+/** Kỹ năng mà 1 viên xí ngầu kích hoạt trên quái u (Engine v6.5 · sim6.skill_for).
+ *  · viên CÙNG hệ quái: mặt vừa ra phải có trên dòng kỹ năng;
+ *  · viên KHÁC hệ: chỉ kích hoạt ô đa sắc — ô màu [hệ, mặt] in trên thẻ, hoặc ô ngũ sắc = mặt 6 của BẤT KỲ viên nào.
+ *  Ô đa sắc là phương án THAY THẾ (1 viên là đủ), không cần thêm viên phụ. */
 function findSkill(u, die, dice) {
-  const m = M(u); if (die.el !== m.element) return null;
+  const m = M(u);
   for (const sk of m.skills) {
-    if (!sk.faces.includes(die.face)) continue;
+    if (die.el === m.element) { if (sk.faces.includes(die.face)) return { skill: sk, extra: [] }; continue; }
     const mc = sk.multicolor;
-    if (!mc || (Array.isArray(mc) && mc.length === 0)) return { skill: sk, extra: [] };
-    const extra = [];
-    if (mc === 'any6') {
-      const j = dice.findIndex(d => d !== die && !d.used && d.face === 6);
-      if (j < 0) continue; extra.push(j);
-    } else {
-      let ok = true;
-      for (const [e, f] of mc) { const j = dice.findIndex((d, k) => d !== die && !d.used && !extra.includes(k) && d.el === e && d.face === f); if (j < 0) { ok = false; break; } extra.push(j); }
-      if (!ok) continue;
-    }
-    return { skill: sk, extra };
+    if (mc === 'any6' && die.face === 6) return { skill: sk, extra: [], multi: true };
+    if (Array.isArray(mc) && mc.some(([e, f]) => e === die.el && f === die.face)) return { skill: sk, extra: [], multi: true };
   }
   return null;
 }
@@ -699,7 +694,6 @@ async function assignDie(di, ci) {
   const s = side('P'), die = s.dice[di], u = s.grid[ci];
   if (!die || die.used) return;
   if (!isMon(u)) { toast('Thả xí ngầu lên một quái của bạn.'); return; }
-  if (die.el !== M(u).element) { toast(`Viên ${EL_VI[die.el]} chỉ kích hoạt quái hệ ${EL_VI[die.el]}.`); return; }
   if (u.st.stun) { toast(`${M(u).name} đang Choáng, không dùng được kỹ năng.`); return; }
   if (u.acted) { toast('Mỗi quái chỉ kích hoạt 1 lần mỗi lượt.'); return; }
   const face0 = die.face, gift0 = u.giftUsed;
@@ -707,6 +701,7 @@ async function assignDie(di, ci) {
   // Thiên phú (Flarevix): 1 lần/trận đổi xí ngầu thành mặt 6
   const tb = M(u).trait_bot;
   if (tb && tb.k === 'gifted' && !u.giftUsed && die.face !== 6 && confirm(`${M(u).name} – ${tb.n}: đổi viên này thành mặt 6? (1 lần/trận)`)) { die.face = 6; u.giftUsed = true; f = findSkill(u, die, s.dice); notify(`${uName(u)} · Thiên phú <i>${esc(tb.n)}</i>: xí ngầu thành mặt 6`, 'P'); }
+  if (!f && die.el !== M(u).element) { toast(`Viên ${EL_VI[die.el]} ${die.face} không kích hoạt được ${M(u).name} (chỉ quái hệ ${EL_VI[die.el]}, hoặc ô đa sắc đúng màu & mặt trên thẻ).`); return; }
   if (!f) { die.face = face0; u.giftUsed = gift0; toast(`Mặt ${die.face} là mặt trống của ${M(u).name}${die.face === 6 ? ' (hoặc thiếu xí ngầu phụ)' : ''}: không kích hoạt.`); return; }
   die.used = true; f.extra.forEach(j => (s.dice[j].used = true)); u.acted = true; die.sel = false; picked = null; S.hoverDie = null;
   S.busy = true; S.acting = { o: 'P', i: ci }; S.assignCtx = { confirmed: false }; setStep(4); render();
@@ -1201,7 +1196,7 @@ function renderGrid(o) {
     if (tauntUp.has(i)) cls.push('taunt-up'); if (covered.has(i)) cls.push('covered');
     const f = fxOf(o, i); if (f) cls.push(f.cls);
     let badge = '';
-    if (isMon(u) && die && M(u).element === die.el) {
+    if (isMon(u) && die && (M(u).element === die.el || findSkill(u, die, sd))) {
       const f = !u.acted && !u.st.stun ? findSkill(u, die, sd) : null;
       if (f) { cls.push('can'); badge = `<span class="sklab ok">${esc(f.skill.name)}${f.skill.tier === 'U' ? ' ★' : ''}</span>`; }
       else badge = `<span class="sklab no">${u.st.stun ? 'Choáng' : u.acted ? 'đã dùng' : 'mặt trống'}</span>`;

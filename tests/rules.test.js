@@ -259,5 +259,21 @@ test('Nhà hết lượt hiện "0 lần kích hoạt"', '3 câu Công trình', 
   ok(document.querySelector('.cell[data-o="P"][data-i="4"] .bldctl').textContent.includes('0 lần kích hoạt'));
 });
 
+/* ───────── v9.0: ô đa sắc là phương án thay thế ───────── */
+test('Ô ngũ sắc (Glimmerwing ★): Điện 6 hoặc mặt 6 của bất kỳ hệ nào đều kích hoạt, chỉ cần 1 viên', 'đa sắc', async () => {
+  board({ Glimmerwing: 4 }, { Hothog: 1 });
+  const g = U('P', 'Glimmerwing');
+  for (const el of EL_ORDER) { const f = findSkill(g, { el, face: 6, used: false }, []); ok(f && f.skill.name === 'Lưới cầu vồng', el + ' 6 phải kích hoạt Lưới cầu vồng'); }
+  ok(!findSkill(g, { el: 'Fire', face: 3, used: false }, []), 'Hỏa 3 không kích hoạt');
+  rollFixed('P', [['Water', 6]]); ok(!spareDie('P', side('P').dice[0]), 'Nước 6 không phải viên dư vì Glimmerwing dùng được');
+  await assign(0, 4); ok(g.acted, 'gán Nước 6 cho Glimmerwing được');
+});
+test('Ô đa sắc có màu (Toucanzam ★): Hỏa 6 hoặc Nước 6 cũng kích hoạt; Cỏ 6 thì không', 'đa sắc', async () => {
+  board({ Toucanzam: 4 }, { Hothog: 1 });
+  const t = U('P', 'Toucanzam');
+  ok(findSkill(t, { el: 'Fire', face: 6, used: false }, []), 'Hỏa 6'); ok(findSkill(t, { el: 'Water', face: 6, used: false }, []), 'Nước 6');
+  ok(!findSkill(t, { el: 'Grass', face: 6, used: false }, []), 'Cỏ 6 không');
+});
+
 window.__CASES = CASES; window.__Fail = Fail;
 })();
