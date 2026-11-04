@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '8.1.0';   // trùng với ?v= trong index.html
+const APP_VER = '8.2.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -943,27 +943,60 @@ function dropOn(o, i, data) {
   }
   render();
 }
+/* ---------- kéo thả bằng Pointer Events (chuột, cảm ứng, bút) ----------
+ * Không dùng HTML5 drag & drop của trình duyệt (không chạy trên màn cảm ứng, dễ bị huỷ khi bàn vẽ lại).
+ * Nhấn giữ 1 đối tượng [data-drag] rồi kéo > 6px → "bóng" của nó bay theo con trỏ; thả trên ô sân / vách che để thực hiện. */
+let pdrag = null, swallowClick = false;
+function dropTargetAt(x, y) {
+  const el = document.elementFromPoint(x, y); if (!el) return {};
+  return { cell: el.closest('.cell'), hand: el.closest('.hand') };
+}
+function endPDrag(e, drop) {
+  const d = pdrag; pdrag = null; if (!d) return;
+  document.querySelectorAll('.cell.over,.hand.over').forEach(x => x.classList.remove('over'));
+  document.body.classList.remove('dragging');
+  if (d.ghost) d.ghost.remove();
+  if (d.src) d.src.classList.remove('dragsrc');
+  if (!d.on) return;
+  swallowClick = true; setTimeout(() => (swallowClick = false), 0);
+  if (S && S.hoverDie != null) { S.hoverDie = null; }
+  if (drop) {
+    const { cell, hand } = dropTargetAt(e.clientX, e.clientY);
+    if (cell) { picked = null; dropOn(cell.dataset.o, +cell.dataset.i, d.data); return; }
+    if (hand && d.data.type === 'cell') { unsummon(d.data.i); return; }
+  }
+  if (S) render();
+}
 function bindDnD() {
-  document.addEventListener('dragstart', e => {
-    const t = e.target.closest('[data-drag]'); if (!t) return;
-    try { dragData = JSON.parse(t.dataset.drag); } catch (_) { dragData = null; }
-    viewPin = false; hideViewer(true);
-    e.dataTransfer.setData('text/plain', t.dataset.drag); e.dataTransfer.effectAllowed = 'move';
+  document.addEventListener('dragstart', e => { if (e.target.closest && e.target.closest('[data-drag], img')) e.preventDefault(); });
+  document.addEventListener('pointerdown', e => {
+    if (e.button > 0 || !S || pendingPick || diePick) return;
+    const t = e.target.closest('[data-drag]'); if (!t || e.target.closest('button')) return;
+    let data; try { data = JSON.parse(t.dataset.drag); } catch (_) { return; }
+    pdrag = { src: t, data, x: e.clientX, y: e.clientY, on: false, id: e.pointerId };
   });
-  document.addEventListener('dragover', e => { const c = e.target.closest('.cell'); if (c) { e.preventDefault(); c.classList.add('over'); } });
-  document.addEventListener('dragleave', e => { const c = e.target.closest('.cell'); if (c) c.classList.remove('over'); });
-  // vách che nhận lại quái kéo từ sân (hoàn tác)
-  document.addEventListener('dragover', e => { const h = e.target.closest('.hand'); if (h && dragData && dragData.type === 'cell') { e.preventDefault(); h.classList.add('over'); } });
-  document.addEventListener('dragleave', e => { const h = e.target.closest('.hand'); if (h) h.classList.remove('over'); });
-  document.addEventListener('drop', e => {
-    const h = e.target.closest('.hand'); if (!h) return; e.preventDefault(); h.classList.remove('over');
-    if (dragData && dragData.type === 'cell') { const i = dragData.i; dragData = null; unsummon(i); }
-  });
-  document.addEventListener('drop', e => {
-    const c = e.target.closest('.cell'); if (!c) return; e.preventDefault(); c.classList.remove('over');
-    let data; try { data = JSON.parse(e.dataTransfer.getData('text/plain')); } catch (_) { return; }
-    picked = null; dropOn(c.dataset.o, +c.dataset.i, data);
-  });
+  document.addEventListener('pointermove', e => {
+    const d = pdrag; if (!d || e.pointerId !== d.id) return;
+    if (!d.on) {
+      if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
+      d.on = true; dragData = d.data; viewPin = false;
+      const r = d.src.getBoundingClientRect();
+      const g = d.src.cloneNode(true); g.removeAttribute('data-drag'); g.classList.add('dragghost');
+      Object.assign(g.style, { width: r.width + 'px', height: r.height + 'px' });
+      d.ox = d.x - r.left; d.oy = d.y - r.top; d.ghost = g; document.body.appendChild(g);
+      d.src.classList.add('dragsrc'); document.body.classList.add('dragging');
+      if (d.data.type === 'die') { S.hoverDie = d.data.di; renderGrid('P'); }
+    }
+    e.preventDefault();
+    d.ghost.style.transform = `translate(${e.clientX - d.ox}px,${e.clientY - d.oy}px) rotate(-4deg) scale(1.06)`;
+    const { cell, hand } = dropTargetAt(e.clientX, e.clientY);
+    document.querySelectorAll('.cell.over,.hand.over').forEach(x => { if (x !== cell && x !== hand) x.classList.remove('over'); });
+    if (cell && (cell.dataset.o === 'P' || d.data.type === 'die')) cell.classList.add('over');
+    if (hand && d.data.type === 'cell') hand.classList.add('over');
+  }, { passive: false });
+  document.addEventListener('pointerup', e => { if (pdrag && e.pointerId === pdrag.id) endPDrag(e, true); });
+  document.addEventListener('pointercancel', e => { if (pdrag && e.pointerId === pdrag.id) endPDrag(e, false); });
+  document.addEventListener('click', e => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); swallowClick = false; } }, true);
 }
 
 /* ================= điều chỉnh thủ công ================= */
@@ -1092,7 +1125,7 @@ function renderGrid(o) {
     }
     if (isMon(u)) {
       const hidden = S.phase === 'place' && o === 'B', m = M(u);
-      const drag = o === 'P' && !S.over ? `draggable="true" data-drag='${JSON.stringify({ type: 'cell', i })}'` : '';
+      const drag = o === 'P' && !S.over ? `data-drag='${JSON.stringify({ type: 'cell', i })}'` : '';
       inner = hidden ? `<div class="unit hidden" data-view="${o}:${i}"><img class="cardback" src="${BACK_M}" alt="thẻ úp"></div>` :
         `<div class="unit ${o} ${u.st.stun ? 'stunned' : ''} ${u.acted ? 'acted' : ''}" ${drag} data-view="${o}:${i}" style="--el:${COL[m.element]}">
         <span class="base"></span><img class="art" src="${artImg(u.id)}" alt="${esc(m.name)}" draggable="false">
@@ -1104,7 +1137,7 @@ function renderGrid(o) {
       </div>`;
     } else if (u && u.kind === 'bld') {
       const b = BLD[u.id];
-      const drag = o === 'P' ? `draggable="true" data-drag='${JSON.stringify({ type: 'cell', i })}'` : '';
+      const drag = o === 'P' ? `data-drag='${JSON.stringify({ type: 'cell', i })}'` : '';
       const ctl = b.kind === 'house'
         ? `<button data-adj="cnt-">−</button><span title="xí ngầu trắng: số lần kích hoạt còn lại">🎲 ${u.counter}${u.counter ? '' : ' lần kích hoạt'}</span><button data-adj="cnt+">+</button>`
         : b.trigger === 'use' ? `<button data-adj="use">▶ Dùng xe</button>` : `<span title="${esc(b.text_vn)}">🛡 Tự chặn đòn</span>`;
@@ -1113,6 +1146,10 @@ function renderGrid(o) {
     return `<div class="${cls.join(' ')}" data-o="${o}" data-i="${i}"${f ? ` style="--fxd:-${Math.round(f.el)}ms"` : ''}>${inner}</div>`;
   }).join('');
 }
+/* 2 thanh kiếm gỗ đan chéo · cuốn sách lật mở bìa nâu vàng */
+const SWORD1 = `<rect x="18" y="1" width="6" height="25" rx="3" fill="#e2b175" stroke="#5a3418" stroke-width="2.2"/><path d="M21 4v19" stroke="#f6dcb0" stroke-width="1.6" stroke-linecap="round"/><rect x="12" y="25" width="18" height="5" rx="2.5" fill="#a9682f" stroke="#5a3418" stroke-width="2.2"/><rect x="18.5" y="30" width="5" height="8" rx="1.5" fill="#7b4a22" stroke="#5a3418" stroke-width="2"/><circle cx="21" cy="40" r="2.8" fill="#c88a45" stroke="#5a3418" stroke-width="1.8"/>`;
+const SWORDS = `<svg viewBox="0 0 42 44"><g transform="rotate(-38 21 22)">${SWORD1}</g><g transform="rotate(38 21 22)">${SWORD1}</g></svg>`;
+const BOOK = `<svg viewBox="0 0 48 34"><path d="M3 9 24 13 45 9V31L24 33 3 31Z" fill="#c8913a" stroke="#5a3418" stroke-width="2.4" stroke-linejoin="round"/><path d="M6 6C13 4 19 5 24 9V30C19 26 13 25 6 27Z" fill="#fff6dc" stroke="#5a3418" stroke-width="2.2" stroke-linejoin="round"/><path d="M42 6C35 4 29 5 24 9V30C29 26 35 25 42 27Z" fill="#fffaf0" stroke="#5a3418" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 11c4-1 8 0 11 2M10 16c4-1 8 0 11 2M27 13c3-2 7-3 11-2M27 18c3-2 7-3 11-2" stroke="#d8b98a" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>`;
 const VINE = `<svg class="vine" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M2 30C10 10 22 4 34 2" fill="none" stroke="#3f7d2a" stroke-width="2.6" stroke-linecap="round"/><path d="M98 70C92 84 84 94 70 98" fill="none" stroke="#3f7d2a" stroke-width="2.6" stroke-linecap="round"/><path d="M5 40c-3 12 1 24 6 30" fill="none" stroke="#3f7d2a" stroke-width="2.2" stroke-linecap="round"/><ellipse cx="22" cy="5" rx="7" ry="3.4" transform="rotate(-25 22 5)" fill="#6cc04a" stroke="#2c5e1c" stroke-width="1.2"/><ellipse cx="4" cy="22" rx="3.2" ry="6.5" transform="rotate(15 4 22)" fill="#5bb33d" stroke="#2c5e1c" stroke-width="1.2"/><ellipse cx="84" cy="95" rx="7" ry="3.4" transform="rotate(-20 84 95)" fill="#6cc04a" stroke="#2c5e1c" stroke-width="1.2"/><ellipse cx="96" cy="80" rx="3.2" ry="6.5" transform="rotate(20 96 80)" fill="#5bb33d" stroke="#2c5e1c" stroke-width="1.2"/><ellipse cx="8" cy="58" rx="3" ry="6" fill="#6cc04a" stroke="#2c5e1c" stroke-width="1.2"/></svg>`;
 /** Hàng xí ngầu giữa bàn + 3 ô nút trên bàn (Thảy / Kết thúc lượt / Gợi ý) */
 function renderTray(animDice) {
@@ -1121,9 +1158,9 @@ function renderTray(animDice) {
   $('#slotCancel').innerHTML = `<button class="btn dark" data-act="cancelassign" ${canCancel ? '' : 'disabled'} title="Huỷ gán xí ngầu / huỷ thao tác năng lượng (hoặc nhấn Esc)"><b>↶</b>Huỷ gán</button>`;
   $('#slotCancel').classList.toggle('on', canCancel);
   const btn = (act, ico, txt, cls, on, tip) => {
-    const wood = { roll: 'teal', reroll: 'teal', endturn: 'coral', ready: 'coral', newgame: 'coral' }[act];
+    const wood = { roll: 'teal', reroll: 'teal', endturn: 'coral', ready: 'gold', newgame: 'blue' }[act];
     if (!wood) return `<button class="btn ${cls}" data-act="${act}" ${on ? '' : 'disabled'} ${tip ? `title="${esc(tip)}"` : ''}><b>${ico}</b>${txt}</button>`;
-    const deco = wood === 'teal' ? `<span class="wdeco dice2">${dieSvg(5, 'Fire')}${dieSvg(3, 'Lightning')}</span>` : `<span class="wdeco arrows"><svg viewBox="0 0 60 34"><path d="M4 3 26 17 4 31Z M30 3 52 17 30 31Z" fill="#d9a066" stroke="#5a3418" stroke-width="3.5" stroke-linejoin="round"/><path d="M8 8 20 17" stroke="#f3cf9a" stroke-width="3" stroke-linecap="round"/></svg></span>`;
+    const deco = wood === 'teal' ? `<span class="wdeco dice2">${dieSvg(5, 'Fire')}${dieSvg(3, 'Lightning')}</span>` : wood === 'gold' ? `<span class="wdeco icon2">${SWORDS}</span>` : wood === 'blue' ? `<span class="wdeco icon2">${BOOK}</span>` : `<span class="wdeco arrows"><svg viewBox="0 0 60 34"><path d="M4 3 26 17 4 31Z M30 3 52 17 30 31Z" fill="#d9a066" stroke="#5a3418" stroke-width="3.5" stroke-linejoin="round"/><path d="M8 8 20 17" stroke="#f3cf9a" stroke-width="3" stroke-linecap="round"/></svg></span>`;
     return `<button class="wbtn ${wood}" data-act="${act}" ${on ? '' : 'disabled'} ${tip ? `title="${esc(tip)}"` : ''}><span class="wface">${txt}</span>${VINE}${deco}</button>`;
   };
   sH.innerHTML = btn('hint', '💡', 'Gợi ý', 'ghost', S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over, 'Trợ lý gợi ý nước đi');
@@ -1137,7 +1174,7 @@ function renderTray(animDice) {
   const dice = s.dice.map((d, k) => {
     const nomon = !fieldEls.has(d.el);
     const blank = o === 'P' && !d.used && !nomon && !activators('P', d, s.dice).length;
-    const drag = o === 'P' && !d.used ? `draggable="true" data-drag='${JSON.stringify({ type: 'die', di: k })}'` : '';
+    const drag = o === 'P' && !d.used ? `data-drag='${JSON.stringify({ type: 'die', di: k })}'` : '';
     const anim = (animDice && d.anim !== false) ? ' rolling' : ''; d.anim = false;
     const tip = d.toE ? 'đã thành ✦' : nomon ? 'không có quái cùng màu → tự thành ✦ cuối bước Gán (khi Kết thúc lượt), hoặc bấm +✦ để đổi ngay' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
     return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}${d.toE ? '<span class="dtag">✦</span>' : (!d.used && o === 'P' && nomon && !T().noEnergy ? `<button class="dtag" data-toenergy="${k}" title="Bấm: đổi viên này thành 1 ✦ ngay">+✦</button>` : '')}</div>`;
@@ -1296,11 +1333,11 @@ function playerHint() {
 }
 function renderHand() {
   const s = side('P');
-  $('#hand').innerHTML = s.reserve.map(u => `<div class="hcard${picked && picked.uid === u.uid ? ' picked' : ''}" draggable="true" data-drag='${JSON.stringify({ type: 'res', uid: u.uid })}' data-res="${u.uid}" data-view="r:${u.uid}"><img src="${monImg(u.id)}" alt="${esc(M(u).name)}"></div>`).join('') || '<span class="muted">Hết dự bị.</span>';
+  $('#hand').innerHTML = s.reserve.map(u => `<div class="hcard${picked && picked.uid === u.uid ? ' picked' : ''}" data-drag='${JSON.stringify({ type: 'res', uid: u.uid })}' data-res="${u.uid}" data-view="r:${u.uid}"><img src="${monImg(u.id)}" alt="${esc(M(u).name)}"></div>`).join('') || '<span class="muted">Hết dự bị.</span>';
   if (S.buildings) {
     const deck = S.bldDeck.length;
     $('#bldArea').innerHTML = `<h3 style="margin-top:8px">Công trình & Xe <small>(mở rộng)</small></h3>
-      <div class="handcards">${s.bldHand.map(b => `<div class="hcard" draggable="true" data-drag='${JSON.stringify({ type: 'bld', uid: b.uid })}' data-bldh="${b.uid}" data-view="b:${b.uid}"><img src="${bldImg(b.id)}" alt="${esc(BLD[b.id].name)}"></div>`).join('')}
+      <div class="handcards">${s.bldHand.map(b => `<div class="hcard" data-drag='${JSON.stringify({ type: 'bld', uid: b.uid })}' data-bldh="${b.uid}" data-view="b:${b.uid}"><img src="${bldImg(b.id)}" alt="${esc(BLD[b.id].name)}"></div>`).join('')}
       ${s.bldHand.length ? '' : '<span class="muted">Bấm chồng thẻ cạnh bảng Năng lượng để rút.</span>'}</div>
       ${s.bldUsed.length ? `<div class="lbl">Đã dùng</div><div class="handcards">${s.bldUsed.map(b => `<div class="hcard used" data-view="u:${b.uid}" title="${esc(BLD[b.id].name)} — đã dùng"><img src="${bldImg(b.id)}" alt=""></div>`).join('')}</div>` : ''}`;
   } else $('#bldArea').innerHTML = '';

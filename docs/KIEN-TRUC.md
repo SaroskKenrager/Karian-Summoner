@@ -249,7 +249,14 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=8.1.0` và `script.js?v=8.1.0`
-- `script.js`: `const APP_VER = '8.1.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=8.2.0` và `script.js?v=8.2.0`
+- `script.js`: `const APP_VER = '8.2.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.
+
+## 12. Kéo thả (v8.2)
+
+Game không dùng drag & drop có sẵn của trình duyệt (HTML5) vì nó không chạy trên màn cảm ứng và dễ bị huỷ khi bàn vẽ lại.
+Thay vào đó `bindDnD()` dùng **Pointer Events** (chuột, cảm ứng, bút như nhau): nhấn giữ đối tượng có `data-drag`, kéo quá 6px thì
+một bản sao (`.dragghost`) bay theo con trỏ, ô sân / vách che dưới con trỏ sáng lên (`.over`), thả ra thì gọi `dropOn()` / `unsummon()`.
+Không đặt lại `draggable="true"` cho phần tử nào, nếu không trình duyệt sẽ tự kéo và huỷ thao tác.
