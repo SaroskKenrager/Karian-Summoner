@@ -286,7 +286,6 @@ body.scene-lose .layout{filter:grayscale(.55) brightness(.92)}
 :root{--tile:clamp(56px, calc((100vh - var(--top) - 30px) / 7), 140px);--glass:rgb(255 255 255/.58);--glassbd:rgb(34 27 69/.45)}
 body{background:#26522c url(assets/board/forest.webp) center/cover fixed}
 .layout{display:grid;grid-template-columns:220px 205px auto 275px;justify-content:center;gap:16px;padding:12px;height:calc(100vh - var(--top))}
-body.nolog .col-log .logbox{display:none}
 .col{display:flex;flex-direction:column;gap:10px;min-height:0;min-width:0}
 /* bảng trong suốt */
 .col>section{background:var(--glass);backdrop-filter:blur(8px) saturate(1.1);-webkit-backdrop-filter:blur(8px) saturate(1.1);border:1.5px solid var(--glassbd);border-radius:16px;padding:10px;box-shadow:0 6px 18px rgb(0 0 0/.18)}
@@ -641,3 +640,14 @@ body{background-image:url(assets/board/app-bg-light.webp),url(assets/board/fores
 .gl i{width:11px;height:11px;margin:-4px}
 .sunfx::before{opacity:.7}
 @keyframes sunbreath{from{opacity:.5}to{opacity:.75}}
+
+/* =====================================================================
+   v7.9 · 4 đường sáng cố định theo cạnh vùng 3×3 (nét mảnh 1/2) · lá bài dự bị / chiến lợi phẩm 2/3 · cụm trạng thái căn giữa bàn
+   ===================================================================== */
+.gl.v{width:2px;margin-left:-1px;box-shadow:0 0 6px 2px rgb(255 240 170/.6)}
+.gl.h{height:2px;margin-top:-1px;box-shadow:0 0 6px 2px rgb(255 240 170/.6)}
+.side-info .hcard{width:calc((var(--die) + 22px) * 2 / 3)}
+.topbar{position:relative}
+.topbar .status{position:absolute;left:var(--bx,50%);top:50%;transform:translate(-50%,-50%);flex:none;width:max-content;max-width:calc(100vw - 560px)}
+@media (max-width:1100px){ .topbar .status{position:static;transform:none;max-width:none;width:auto} }
+.topbar .tools{margin-left:auto}

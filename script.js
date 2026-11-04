@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '7.8.0';   // trùng với ?v= trong index.html
+const APP_VER = '7.9.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -260,8 +260,8 @@ function koFly(u, o, rect) {
     await fly.animate([
       { transform: `translate(0,0) scaleX(${flip}) rotate(0)`, offset: 0 },
       { transform: `translate(0,-28%) scaleX(${flip}) scale(1.12) rotate(0)`, offset: .18, easing: 'ease-out' },
-      { transform: `translate(0,-8%) scaleX(${flip}) rotate(180deg)`, offset: .42 },
-      { transform: `translate(${dx}px,${dy}px) scaleX(${flip}) scale(${sc}) rotate(360deg)`, offset: 1, opacity: .9 }
+      { transform: `translate(0,-8%) scaleX(${flip}) rotate(360deg)`, offset: .42 },
+      { transform: `translate(${dx}px,${dy}px) scaleX(${flip}) scale(${sc}) rotate(540deg)`, offset: 1, opacity: .9 }
     ], { duration: 1250, easing: 'cubic-bezier(.45,0,.3,1)', fill: 'forwards' }).finished;
     fly.remove();
     const mist = document.createElement('i'); mist.className = 'mist'; document.body.appendChild(mist);
@@ -948,21 +948,20 @@ let viewSel = null;
  * Phóng ảnh nền để 125px ảnh = 1 ô của bàn chơi, đặt cột trùng cột, tâm trùng tâm → bàn chơi "nằm" đúng trong khoảng trống của rừng. */
 const BG = { w: 2752, h: 1536, tx: 125, ty: 123.2, x0: 1081, y0: 353.8 };   // ô cỏ 125 × 123.2px, ô (0,0) của sân tại (1081, 353.8)
 /** chọn ngẫu nhiên vài đường chia ô trong mỗi vùng 3×3, cho đường sáng lên và tinh linh nhỏ bay dọc theo */
+/** 4 đường sáng cố định theo 4 cạnh ngoài của mỗi vùng 3×3, tinh linh nhỏ bay dọc theo (lặp tại chỗ) */
 function sparkLines() {
+  const edges = [{ v: false, at: 0, d: 6.5, dl: 0 }, { v: true, at: 1, d: 7.5, dl: -2.5 }, { v: false, at: 1, d: 7, dl: -4.5, rev: 1 }, { v: true, at: 0, d: 8, dl: -1.2, rev: 1 }];
   document.querySelectorAll('.glines').forEach(g => {
-    const all = [];
-    [0, 1, 2, 3].forEach(k => { all.push({ v: true, at: k / 3 }); all.push({ v: false, at: k / 3 }); });
-    const pick = all.sort(() => Math.random() - .5).slice(0, 3 + Math.floor(Math.random() * 2));
-    g.innerHTML = pick.map(l => {
-      const seg = Math.random() < .5 ? [0, 1] : (Math.random() < .5 ? [0, 2 / 3] : [1 / 3, 1]);   // cả cạnh hoặc 2/3 cạnh
-      const st = l.v ? `left:${l.at * 100}%;top:${seg[0] * 100}%;height:${(seg[1] - seg[0]) * 100}%` : `top:${l.at * 100}%;left:${seg[0] * 100}%;width:${(seg[1] - seg[0]) * 100}%`;
-      const d = (5 + Math.random() * 5).toFixed(1), dl = (-Math.random() * 8).toFixed(1), rev = Math.random() < .5 ? ' rev' : '';
-      return `<span class="gl ${l.v ? 'v' : 'h'}${rev}" style="${st};--d:${d}s;--dl:${dl}s"><i></i><i style="animation-delay:calc(var(--dl) - ${(+d / 2).toFixed(1)}s)"></i></span>`;
-    }).join('');
+    g.innerHTML = edges.map(l => `<span class="gl ${l.v ? 'v' : 'h'}${l.rev ? ' rev' : ''}" style="${l.v ? `left:${l.at * 100}%;top:0;height:100%` : `top:${l.at * 100}%;left:0;width:100%`};--d:${l.d}s;--dl:${l.dl}s"><i></i><i style="animation-delay:calc(var(--dl) - ${(l.d / 2).toFixed(1)}s)"></i></span>`).join('');
   });
 }
 function alignBackground() {
   const b = document.getElementById('board'); if (!b) return;
+  const st = document.getElementById('status');
+  if (st) {   // cụm trạng thái: căn giữa theo bàn chơi, nhưng không đè logo / các nút bên phải
+    const r0 = b.getBoundingClientRect(), w = st.offsetWidth, br = document.querySelector('.brand').getBoundingClientRect().right, tl = document.querySelector('.topbar .tools').getBoundingClientRect().left;
+    st.style.setProperty('--bx', Math.max(br + w / 2 + 10, Math.min(r0.left + r0.width / 2, tl - w / 2 - 10)) + 'px');
+  }
   if (innerWidth <= 1100) { document.body.style.backgroundSize = ''; document.body.style.backgroundPosition = ''; return; }
   const r = b.getBoundingClientRect(), kx = (r.width / 5) / BG.tx, ky = (r.height / 7) / BG.ty;
   document.body.style.backgroundSize = `${BG.w * kx}px ${BG.h * ky}px, cover`;
@@ -1357,11 +1356,7 @@ function bindUI() {
   $('#btnNew').onclick = () => setupModal();
   $('#btnRules').onclick = () => rulesModal();
   addEventListener('resize', alignBackground); setTimeout(alignBackground, 50);
-  sparkLines(); setInterval(sparkLines, 16000);
-  const setLog = hide => { document.body.classList.toggle('nolog', hide); $('#btnLog').textContent = hide ? '📜 Hiện nhật ký' : '📜 Ẩn nhật ký'; try { localStorage.setItem('karian_nolog', hide ? '1' : ''); } catch (_) { } };
-  let hideLog = false; try { hideLog = localStorage.getItem('karian_nolog') === '1'; } catch (_) { }
-  setLog(hideLog);
-  $('#btnLog').onclick = () => { setLog(!document.body.classList.contains('nolog')); alignBackground(); };
+  sparkLines();
   $('#btnEnd').onclick = () => endSession();
   setInterval(() => { if (S && S.phase === 'play' && !S.over) renderStatus(); }, 1000);
   $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && S && S.phase !== 'setup') closeModal(); });
