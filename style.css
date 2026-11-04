@@ -786,3 +786,14 @@ b.dg{background:#eef9ee;border:1px solid #8fcf98;border-radius:6px;padding:0 4px
   .topbar .status{gap:5px}.topbar .status .pill{font-size:12.5px;padding:1px 8px}
   .topbar .tools .btn,.brand .btn{padding:4px 9px;font-size:12.5px}
 }
+/* v8.5 · nút năng lượng dày 1.5×, chữ 1.5× */
+.pwrap .eact,.eact{font-size:17px;padding:6px 8px;border-radius:12px;gap:8px;line-height:1.15}
+.pwrap .eact b,.eact b{min-width:38px;font-size:17px}
+.eacts{gap:5px}
+/* chồng Công trình lên trên bảng năng lượng (nằm ngang) để nút năng lượng đủ rộng */
+.pwrap{flex-direction:column;gap:4px}
+.pwrap .bdeck{order:-1;width:auto;margin-top:0;flex-direction:row;align-items:center;gap:8px;align-self:stretch;padding:2px 4px;border-radius:10px}
+.pwrap .bdeck img{width:34px}
+.pwrap .bdeck b{position:static;font-size:12px}
+.pwrap .bdeck small{font-size:13px;color:var(--ink)}
+.pwrap .bdeck small::after{content:" — bấm để rút (2 ✦)";font-weight:500;color:var(--ink2);font-size:11.5px}
