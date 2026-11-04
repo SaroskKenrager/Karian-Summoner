@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '8.6.0';   // trùng với ?v= trong index.html
+const APP_VER = '8.7.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -1099,7 +1099,7 @@ function renderSteps() {
 function renderStatus() {
   if (!S) return;
   const p = scoreOf('P'), b = scoreOf('B');
-  $('#status').innerHTML = `<span class="pill">${esc(T().name)}</span><span class="pill">Vòng ${Math.min(S.round, S.maxRounds)}/${S.maxRounds}</span>` +
+  $('#status').innerHTML = `<span class="pill" title="${esc(T().name)}">${esc(T().name.replace(/ \(.*\)$/, ""))}</span><span class="pill">Vòng ${Math.min(S.round, S.maxRounds)}/${S.maxRounds}</span>` +
     (S.phase === 'place' ? `<span class="pill turnP">Đặt quân</span>` : S.over ? `<span class="pill">Kết thúc</span>` : `<span class="pill ${S.turn === 'P' ? 'turnP' : 'turnB'}">Lượt: ${who(S.turn)}</span>`) +
     `<span class="pill">🍇 Bạn ${p.total} · Máy ${b.total}</span><span class="pill" title="Thời gian · số lượt">⏱ ${fmtTime((S.over && S.endTime ? S.endTime : Date.now()) - S.startTime)} · #${S.turnCount}</span>`;
 }

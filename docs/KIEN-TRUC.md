@@ -249,8 +249,8 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=8.6.0`, `data/luat-choi.js?v=8.6.0` và `script.js?v=8.6.0`
-- `script.js`: `const APP_VER = '8.6.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=8.7.0`, `data/luat-choi.js?v=8.7.0` và `script.js?v=8.7.0`
+- `script.js`: `const APP_VER = '8.7.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.
 
@@ -280,3 +280,11 @@ Nút **📖 Luật chơi** mở 3 trang, nội dung nằm riêng trong `data/lua
 
 **Viên dư** (v8.4): viên không thể gán một cách khách quan — không có quái cùng màu, hoặc mọi quái cùng màu đang Choáng / đã kích hoạt
 (`spareDie()`). Có nút +✦, tự thành ✦ ở cuối bước Gán. Mặt trống của quái còn dùng được không phải viên dư.
+
+## 15. Nhiều cỡ màn hình (v8.7)
+
+- Mọi chiều cao dùng `--vh` = `100dvh` (phần màn hình **thật sự nhìn thấy**). Safari trên iPad / iPhone tính `100vh` gồm cả vùng
+  sau thanh địa chỉ nên trước đây chân trang bị đẩy ra ngoài.
+- Đã kiểm tra: iPad Pro 13" ngang/dọc, iPad Pro 11", iPad Air, laptop 1280×720 / 1366×768, MacBook 1440×900, Full HD, 2K, điện thoại 390px.
+- 1101–1320px (iPad 11" / iPad Air ngang): các cột bên hẹp lại để bàn chơi vừa màn hình.
+- Kiểm tra lại sau khi sửa giao diện: mở DevTools → chế độ thiết bị, thử các cỡ trên.

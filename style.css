@@ -1,11 +1,12 @@
 :root{
+  --vh:100vh;   /* chiều cao vùng nhìn thấy thật (xem @supports dvh bên dưới) */
   --ink:#221b45; --ink2:#4a4370; --cream:#fff6e0; --paper:#fff; --sun:#ffc531; --sunlt:#ffe08a; --mint:#3cc9a6;
   --red:#e04b3e; --blue:#3f95f0; --green:#45b157;
   --Water:#3f95f0; --Fire:#ff7a45; --Grass:#45b157; --Rock:#b0824f; --Lightning:#f0bf00;
   --display:"Baloo 2",ui-rounded,"Trebuchet MS",system-ui,sans-serif;
   --body:"Be Vietnam Pro","Segoe UI",system-ui,sans-serif;
   --top:58px;
-  --ch:clamp(80px, calc((100vh - var(--top) - 168px) / 6), 200px);
+  --ch:clamp(80px, calc((var(--vh) - var(--top) - 168px) / 6), 200px);
   --cw:calc(var(--ch) * 63 / 88);
   --bd:2px solid var(--ink);
 }
@@ -36,7 +37,7 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
 .btn.sm{padding:2px 8px;font-size:12px;border-radius:9px}
 
 /* ---------- layout ---------- */
-.layout{display:grid;grid-template-columns:250px 200px minmax(0,1fr) 300px;gap:10px;padding:10px;height:calc(100vh - var(--top))}
+.layout{display:grid;grid-template-columns:250px 200px minmax(0,1fr) 300px;gap:10px;padding:10px;height:calc(var(--vh) - var(--top))}
 .panel{display:flex;flex-direction:column;gap:10px;min-height:0}
 .panel>section{background:rgb(255 255 255/.93);border:var(--bd);border-radius:16px;padding:10px;box-shadow:0 3px 0 var(--ink)}
 .logbox{flex:1;min-height:0;display:flex;flex-direction:column}
@@ -45,7 +46,7 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
 #log li.t{font-weight:800;font-family:var(--display);color:var(--ink);border-top:1px dashed #bbb;padding-top:3px}
 #log li.B{color:#8e1f15}#log li.P{color:#1f5a2c}
 .viewer{flex:1;min-height:0;overflow:auto}
-.viewer img.big{width:100%;max-width:min(230px, calc(100vh - 560px));min-width:150px;display:block;margin:0 auto 6px;border-radius:10px}
+.viewer img.big{width:100%;max-width:min(230px, calc(var(--vh) - 560px));min-width:150px;display:block;margin:0 auto 6px;border-radius:10px}
 .viewer .ctl{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center}
 .viewer .ctl .row{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 
@@ -228,7 +229,7 @@ h3 small{font-family:var(--body);font-weight:500;font-size:11px;color:var(--ink2
 .tauntlab{background:#e04b3e;color:#fff}.covlab{background:#fff;color:var(--ink2)}
 
 /* dải sáng năng lượng / kỹ năng: "thở" */
-.beam{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:25;display:none}
+.beam{position:fixed;inset:0;width:100vw;height:var(--vh);pointer-events:none;z-index:25;display:none}
 .beam.on{display:block}
 .beam path{fill:none;stroke-linecap:round}
 .beam .glow{stroke:#b48cff;stroke-width:16;opacity:.35;filter:blur(4px);animation:breathe 1.6s ease-in-out infinite}
@@ -283,9 +284,9 @@ body.scene-lose .layout{filter:grayscale(.55) brightness(.92)}
    Hàng 1–3: sân Máy · hàng 4: xí ngầu · hàng 5–7: sân Bạn. Cột 1 và 5 là ô cỏ trang trí + nút.
    Bảng thông tin trong suốt, đặt xa bàn; thẻ lớn chỉ hiện khi trỏ chuột vào quái.
    ===================================================================== */
-:root{--tile:clamp(56px, calc((100vh - var(--top) - 30px) / 7), 140px);--glass:rgb(255 255 255/.58);--glassbd:rgb(34 27 69/.45)}
+:root{--tile:clamp(56px, calc((var(--vh) - var(--top) - 30px) / 7), 140px);--glass:rgb(255 255 255/.58);--glassbd:rgb(34 27 69/.45)}
 body{background:#26522c}
-.layout{display:grid;grid-template-columns:220px 205px auto 275px;justify-content:center;gap:16px;padding:12px;height:calc(100vh - var(--top))}
+.layout{display:grid;grid-template-columns:220px 205px auto 275px;justify-content:center;gap:16px;padding:12px;height:calc(var(--vh) - var(--top))}
 .col{display:flex;flex-direction:column;gap:10px;min-height:0;min-width:0}
 /* bảng trong suốt */
 .col>section{background:var(--glass);backdrop-filter:blur(8px) saturate(1.1);-webkit-backdrop-filter:blur(8px) saturate(1.1);border:1.5px solid var(--glassbd);border-radius:16px;padding:10px;box-shadow:0 6px 18px rgb(0 0 0/.18)}
@@ -335,7 +336,7 @@ body{background:#26522c}
 .board .wheel svg{width:100%;height:100%}
 
 /* thẻ lớn nổi lên khi trỏ vào quái */
-.cardpop{position:fixed;z-index:30;width:290px;max-height:calc(100vh - var(--top) - 20px);overflow:auto;background:rgb(255 255 255/.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:2px solid var(--ink);border-radius:16px;padding:10px;box-shadow:0 14px 34px rgb(0 0 0/.4);animation:popin .14s ease-out}
+.cardpop{position:fixed;z-index:30;width:290px;max-height:calc(var(--vh) - var(--top) - 20px);overflow:auto;background:rgb(255 255 255/.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:2px solid var(--ink);border-radius:16px;padding:10px;box-shadow:0 14px 34px rgb(0 0 0/.4);animation:popin .14s ease-out}
 .cardpop[hidden]{display:none!important}
 .cardpop img.big{width:100%;max-width:270px;display:block;margin:0 auto 6px;border-radius:10px}
 .cardpop .pin{position:absolute;right:8px;top:8px;z-index:2}
@@ -445,7 +446,7 @@ body{background:#26522c}
    Đo lưới trên ảnh gốc 1792×2400: cột 117→1677 (5 × 312px), hàng 102·415·724·1038·1352·1674·1992·2291.
    --k = độ dài của 1px ảnh gốc trên màn hình → mọi ô sân khớp đúng 1 ô cỏ của ảnh.
    ===================================================================== */
-:root{--tile:clamp(50px, calc((100vh - var(--top) - 26px) / 7.69), 140px)}
+:root{--tile:clamp(50px, calc((var(--vh) - var(--top) - 26px) / 7.69), 140px)}
 .board{--k:calc(var(--tile) / 312);
   grid-template-columns:repeat(5,calc(312 * var(--k)));
   grid-template-rows:calc(313 * var(--k)) calc(309.5 * var(--k)) calc(313.5 * var(--k)) calc(314 * var(--k)) calc(322 * var(--k)) calc(318 * var(--k)) calc(299 * var(--k));
@@ -498,7 +499,7 @@ button.dtag:hover{background:#a77bff;transform:scale(1.12)}
 @keyframes orbpop{0%{transform:scale(.6);filter:brightness(2) drop-shadow(0 0 12px #c9a8ff)}45%{transform:scale(1.45);filter:brightness(1.5) drop-shadow(0 0 12px #c9a8ff)}100%{transform:scale(1)}}
 
 /* viên năng lượng to bằng viên xí ngầu; ô "Bạn" cao bằng ô lá bài */
-:root{--toph:calc((100vh - var(--top) - 24px) * .6);--die:max(34px, calc(var(--tile) * .42))}
+:root{--toph:calc((var(--vh) - var(--top) - 24px) * .6);--die:max(34px, calc(var(--tile) * .42))}
 .col-log .cardview{height:var(--toph);max-height:none;flex:none}
 #infoP{height:var(--toph);flex:none;overflow:auto;display:flex;flex-direction:column}
 #infoP .pwrap{flex:1}
@@ -573,7 +574,7 @@ body{background-color:#4f7a35;background-image:url(assets/board/app-bg-light.web
    Ô cỏ của ảnh: 125 × 123.2px, ô (0,0) của sân tại (1081, 353.8) trên ảnh gốc 2752×1536.
    Bàn chơi không còn ảnh / viền riêng: alignBackground() phóng ảnh nền để mỗi ô cỏ = 1 ô sân.
    ===================================================================== */
-:root{--tile:clamp(50px, calc((100vh - var(--top) - 34px) / 7), 140px)}
+:root{--tile:clamp(50px, calc((var(--vh) - var(--top) - 34px) / 7), 140px)}
 body{background-image:url(assets/board/app-bg-light.webp)}
 .board{grid-template-columns:repeat(5,var(--tile));grid-template-rows:repeat(7,var(--tile));padding:0;
   background:none;-webkit-mask-image:none;mask-image:none;border-radius:0;box-shadow:none}
@@ -822,3 +823,35 @@ b.dg{background:#eef9ee;border:1px solid #8fcf98;border-radius:6px;padding:0 4px
 .setfirst .opt{padding:5px 14px}
 .setfoot .foot{margin:0}
 @media (max-width:900px){.setrow,.draftrow{grid-template-columns:1fr}.setcards.c5{grid-template-columns:repeat(3,minmax(0,1fr))}.draftpv{position:static;max-width:300px}}
+
+/* =====================================================================
+   v8.7 · màn hình nhiều cỡ (iPad, laptop, màn lớn)
+   Safari iPad / điện thoại tính 100vh = cả màn hình kể cả thanh địa chỉ → chân trang bị đẩy ra ngoài.
+   100dvh = phần thật sự nhìn thấy, nên mọi chiều cao trong game dùng --vh.
+   ===================================================================== */
+@supports (height:100dvh){:root{--vh:100dvh}}
+html,body{height:var(--vh)}
+body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+.modal-card{max-height:calc(var(--vh) * .92)}
+.clzoom img{max-height:calc(var(--vh) * .88)}
+/* màn hẹp vừa (iPad 11" / iPad Air ngang, laptop nhỏ): thu các cột bên để vừa bàn chơi */
+@media (min-width:1101px) and (max-width:1320px){
+  .layout{grid-template-columns:178px 168px auto 228px;gap:10px;padding:10px 8px}
+  .eact,.pwrap .eact{font-size:14px;padding:5px 6px}.eact b,.pwrap .eact b{min-width:30px;font-size:14px}
+  .steps .step b{font-size:12px}
+}
+/* điện thoại / iPad dọc: cụm trạng thái xuống dòng, không tràn ngang */
+@media (max-width:1100px){
+  .topbar .status{flex:1 1 100%;flex-wrap:wrap;justify-content:center;width:auto;max-width:100%}
+  .topbar .status .pill{font-size:12px;padding:1px 7px}
+  .brand{flex-wrap:wrap;gap:4px}
+}
+/* tinh linh bay sát mép phải trên điện thoại không được làm trang cuộn ngang */
+html,body{overflow-x:hidden}
+@supports (overflow:clip){html,body{overflow-x:clip}}
+@media (min-width:1101px) and (max-width:1320px){
+  .topbar{gap:6px;padding:0 8px}
+  .brand{font-size:17px}.brand img{width:30px;height:30px}
+  .brand .btn,.topbar .tools .btn{padding:3px 7px;font-size:12px}
+  .topbar .status .pill{font-size:12px;padding:1px 6px}
+}
