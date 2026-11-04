@@ -26,6 +26,12 @@ const U = (o, id) => side(o).grid.find(u => u && u.id === id);
 const at = (o, id) => side(o).grid.findIndex(u => u && u.id === id);
 const names = (o, idx) => idx.map(i => side(o).grid[i].id);
 const ctx0 = () => ({ tg: {}, blocked: new Set() });
+/** gán xí ngầu như người chơi: mọi lần gán đều hỏi xác nhận mục tiêu → tự chọn lựa chọn đầu tiên */
+async function assign(k, i, pick) {
+  const p = assignDie(k, i);
+  for (let n = 0; n < 40; n++) { await new Promise(r => setTimeout(r, 15)); if (pendingPick) finishPick(pick ? pick(pendingPick.req) : pendingPick.req.opts[0]); else if (!S.busy) break; }
+  await p;
+}
 const rollFixed = (o, list) => { const s = side(o); s.dice = list.map(([el, face]) => ({ el, face, used: false })); s.rolled = true; s.locked = false; };
 
 /* ───────── dữ liệu ───────── */
@@ -59,9 +65,7 @@ test('Gọi dự bị trong lượt và dùng xí ngầu ngay; mỗi lượt ch�
   dropOn('P', 5, { type: 'res', uid: side('P').reserve[0].uid });
   ok(!U('P', 'Hellhound'), 'lần gọi thứ 2 trong lượt bị chặn');
   rollFixed('P', [['Water', 2]]);
-  const enemy = at('B', 'Hothog');
-  const p = assignDie(0, at('P', 'Seaswirl'));
-  await new Promise(r => setTimeout(r, 30)); if (pendingPick) finishPick([enemy]); await p;
+  await assign(0, at('P', 'Seaswirl'));
   ok(U('P', 'Seaswirl').acted, 'quái vừa gọi đã kích hoạt kỹ năng');
 });
 
@@ -69,8 +73,8 @@ test('Gọi dự bị trong lượt và dùng xí ngầu ngay; mỗi lượt ch�
 test('Mỗi quái tối đa 1 kỹ năng / lượt', 'gán xí ngầu', async () => {
   board({ Stoodbeak: 1, Seaswirl: 4 }, { Hothog: 1 });
   rollFixed('P', [['Water', 4], ['Water', 5]]);
-  await assignDie(0, at('P', 'Stoodbeak'));
-  await assignDie(1, at('P', 'Stoodbeak'));
+  await assign(0, at('P', 'Stoodbeak'));
+  await assign(1, at('P', 'Stoodbeak'));
   ok(!side('P').dice[1].used, 'viên thứ 2 không được gán cho cùng quái');
 });
 test('Viên không có quái cùng màu → +1 ✦ ngay ở bước Gán; ✦ tối đa 3', 'D · ✦ trần 3', async () => {
@@ -133,7 +137,7 @@ test('Đau: đầu lượt chủ quái mất 2 ❤ thẳng, không cộng dồn'
 test('Choáng: không kích hoạt kỹ năng', 'trạng thái', async () => {
   board({ Stoodbeak: 1 }, { Hothog: 1 });
   U('P', 'Stoodbeak').st.stun = true; rollFixed('P', [['Water', 4]]);
-  await assignDie(0, 1); ok(!U('P', 'Stoodbeak').acted && !side('P').dice[0].used);
+  await assign(0, 1); ok(!U('P', 'Stoodbeak').acted && !side('P').dice[0].used);
 });
 test('Yếu −1 (tối thiểu 1) · Hăng hái +1', 'trạng thái', async () => {
   board({ Seaswirl: 4 }, { Bastogard: 1 });
@@ -223,6 +227,36 @@ test('Ngưỡng ❤ chạy mỗi lần tụt qua ngưỡng', 'Ngưỡng', async 
   const u = U('P', 'Ninjaguana');
   await damage('B', null, 'P', 4, 3, ctx0(), true); eq(u.shield, 3, 'lần 1 (7 → 4)');
   u.shield = 0; u.hp = 6; await damage('B', null, 'P', 4, 3, ctx0(), true); eq(u.shield, 3, 'lần 2 (6 → 3)');
+});
+
+/* ───────── v7.6: Huỷ gán, đổi viên thành ✦ ───────── */
+test('Huỷ gán: xí ngầu trở về khay, quái chưa kích hoạt, không ai mất ❤', 'thao tác bản digital', async () => {
+  board({ Seaswirl: 4 }, { Hothog: 1 });
+  rollFixed('P', [['Water', 2]]);
+  const hp0 = U('B', 'Hothog').hp;
+  await assign(0, at('P', 'Seaswirl'), () => CANCEL);
+  ok(!side('P').dice[0].used, 'viên xí ngầu chưa dùng'); ok(!U('P', 'Seaswirl').acted, 'quái chưa kích hoạt'); eq(U('B', 'Hothog').hp, hp0);
+  await assign(0, at('P', 'Seaswirl'));
+  ok(U('P', 'Seaswirl').acted && U('B', 'Hothog').hp < hp0, 'gán lại được và đòn đánh trúng');
+});
+test('Mọi lần gán đều chờ xác nhận mục tiêu (kể cả mục tiêu tự động / chỉ còn 1 địch)', 'thao tác bản digital', async () => {
+  board({ Stoodbeak: 1 }, { Hothog: 1 });
+  rollFixed('P', [['Water', 4]]);          // Giáp băng: +2 Khiên mình + đồng đội kề (tự động)
+  const p = assignDie(0, 1); await new Promise(r => setTimeout(r, 40));
+  ok(pendingPick && pendingPick.req.confirm, 'đang chờ xác nhận'); eq(U('P', 'Stoodbeak').shield, 0, 'chưa áp dụng trước khi xác nhận');
+  finishPick(pendingPick.req.opts[0]); await p; eq(U('P', 'Stoodbeak').shield, 2);
+});
+test('Bấm +✦: viên không có quái cùng màu thành 1 ✦ ngay (tối đa 3)', 'D · ✦ trần 3', async () => {
+  board({ Seaswirl: 4 }, { Hothog: 1 });
+  side('P').energy = 2; rollFixed('P', [['Water', 2], ['Fire', 3], ['Grass', 4]]);
+  dieToEnergy(1); eq(side('P').energy, 3); ok(side('P').dice[1].toE);
+  dieToEnergy(0); ok(!side('P').dice[0].used, 'viên có quái cùng màu không đổi được');
+  dieToEnergy(2); eq(side('P').energy, 3, 'đầy 3 thì phần dư bỏ');
+});
+test('Nhà hết lượt hiện "0 lần kích hoạt"', '3 câu Công trình', async () => {
+  board({ Stoodbeak: 1 }, { Hothog: 1 });
+  side('P').grid[4] = { kind: 'bld', uid: UID++, id: 'Choco Fount', counter: 0, st: {} }; render();
+  ok(document.querySelector('.cell[data-o="P"][data-i="4"] .bldctl').textContent.includes('0 lần kích hoạt'));
 });
 
 window.__CASES = CASES; window.__Fail = Fail;

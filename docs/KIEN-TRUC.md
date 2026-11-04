@@ -105,8 +105,13 @@ Mỗi kỹ năng trong JSON là một danh sách hiệu ứng, ví dụ:
             └───┴───┴───┴───┴───┘   Bạn · ✦ · Vách che (cột phải)
 ```
 
-- **Bàn cờ** là một khối riêng: ô cỏ xen kẽ đậm – nhạt (CSS `repeating-conic-gradient`, không cần ảnh), cạnh ô = `--tile`
-  = (chiều cao màn hình − thanh trên) / 7. Nút và vòng khắc hệ nằm *trong* bàn, mỗi cái cỡ 1 ô.
+- **Bàn cờ** dùng ảnh *Play area board Gemini AI* (Karian-Library) → `assets/board/play-area.webp`.
+  Lưới đã đo trên ảnh gốc 1792×2400: cột 117→1677 (5 × 312px), ranh giới hàng 102·415·724·1038·1352·1674·1992·2291.
+  CSS dùng `--k = --tile / 312` (1px ảnh gốc trên màn hình) nên mỗi ô sân trùng đúng 1 ô cỏ; nếu thay ảnh khác, đo lại 2 dãy số này
+  (script đo: `tools/grid_detect.py <ảnh>`) rồi sửa `grid-template-rows` / `padding` của `.board`.
+- **Vùng 3×3** của Máy và Bạn là **bóng cây đổ** (vệt tối mềm + đốm nắng), không có khung viền.
+- Ô **↶ Huỷ gán** (đen trong mờ) dưới ô Kết thúc lượt. Mọi lần gán xí ngầu đều bật **dải vàng** chọn / xác nhận mục tiêu
+  (kể cả mục tiêu tự động); đưa dải vào ô Huỷ gán (hoặc nhấn Esc) để trả xí ngầu về khay.
 - **Nền** là rừng thông vẽ từ ảnh *Pine Tree* / *Large Pine* (Karian-Library/Decoration) bằng `forest.py`
   → `assets/board/forest.webp`.
 - **Bảng thông tin** (nhật ký, Máy, thứ tự lượt, Bạn, vách che) nằm xa bàn, nền trong suốt mờ (`--glass`, `backdrop-filter`).
@@ -184,7 +189,9 @@ Mỗi lần vẽ, ô tự đọc `FX`, gắn lớp `fx-hit` và đặt `--fxd` =
 | `fx-aim` | Máy chuẩn bị đánh ô này | viền đỏ sáng lên ~0,5 giây |
 | `taunt-up` / `covered` | bạn nhắm đòn 1 mục tiêu | quái Khiêu khích to ra + nhãn, quái được che nhỏ lại; rê vào quái được che thì quái Khiêu khích "giật" về |
 | dải sáng `#beam` | chọn mục tiêu cho ✦ | đường trắng liền "thở" từ nút ✦ tới con trỏ; đầu là vòng tròn trắng nét đứt xoay, bắt dính vào ô hợp lệ |
-| mũi tên vàng `.beam.aim` | chọn mục tiêu cho kỹ năng | mũi tên vàng viền nâu (kiểu nhắm mục tiêu) từ quái đang ra đòn |
+| dải vàng `.beam.aim` | chọn / xác nhận mục tiêu kỹ năng | như dải năng lượng nhưng vàng, to hơn; đầu là vòng tròn vàng nét đứt |
+| `.sprite` + `orbpop` | đổi viên xí ngầu thành ✦ (bấm "+✦" hoặc tự động ở bước Gán) | viên bung thành tinh linh sáng, bay về ô năng lượng, viên năng lượng phóng to rồi sáng |
+| `.flysmall` | xe dùng xong | thẻ xe bay về khu Công trình & Xe, nằm ở mục "Đã dùng" (xám) |
 | `fx-ko` | quái bị hạ | ảnh quái xám đi, nghiêng và rơi mờ dần |
 | `acting` | quái đang ra đòn | ảnh quái nhún lên xuống |
 | `.flycard` | rút Công trình | thẻ bay ra giữa màn hình, lật mặt, thu nhỏ bay về khu dự bị |
@@ -213,7 +220,7 @@ và nói điều **không** muốn (ví dụ "không lóe trắng cả màn hìn
 ## 9. Kiểm tra luật tự động (tests/rules.html)
 
 Mở `tests/rules.html` (trên máy: `http://localhost:8000/tests/rules.html`, trên GitHub Pages: `…/Karian-Summoner/tests/rules.html`).
-Trang tự chạy **29 ca kiểm** chuyển từ `Engine v6.5/tests/test_rules.py` (Karian-Library) và hiện ✅ / ❌ cho từng luật:
+Trang tự chạy **33 ca kiểm** chuyển từ `Engine v6.5/tests/test_rules.py` (Karian-Library) và hiện ✅ / ❌ cho từng luật:
 lượt 5 bước, gọi dự bị, gán xí ngầu, ✦ trần 3, khắc hệ, Cận chiến/Tầm xa, Khiêu khích/Xuyên, diện rộng, 4 trạng thái,
 điểm & hòa, Draft A, lượt đầu, Ván 0, Công trình & Xe, Charflutter hồi sinh, Ngưỡng ❤, và đủ ảnh cho mọi thẻ.
 
@@ -238,7 +245,7 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=7.5.0` và `script.js?v=7.5.0`
-- `script.js`: `const APP_VER = '7.5.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=7.6.0` và `script.js?v=7.6.0`
+- `script.js`: `const APP_VER = '7.6.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.

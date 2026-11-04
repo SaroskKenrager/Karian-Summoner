@@ -440,3 +440,91 @@ body.nolog .col-log .logbox{display:none}
 @keyframes hpflash{0%,40%,80%{box-shadow:0 0 0 2px #fff,0 0 8px 2px #ff5a45}20%,60%,100%{box-shadow:0 0 0 1.5px rgb(34 27 69/.9)}}
 .hpbar1 span{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;height:100%;color:#fff;font-family:var(--display);font-weight:800;font-size:calc(var(--tile)*.075 + 4px);line-height:1;text-shadow:0 1px 0 rgb(34 27 69/.9),0 0 3px rgb(34 27 69/.8);padding-top:1px}
 @media (max-width:1100px){ .col-log .cardview{max-height:none} }
+
+/* =====================================================================
+   v7.6 · nền bàn chơi = "Play area board Gemini AI" (Karian-Library)
+   Đo lưới trên ảnh gốc 1792×2400: cột 117→1677 (5 × 312px), hàng 102·415·724·1038·1352·1674·1992·2291.
+   --k = độ dài của 1px ảnh gốc trên màn hình → mọi ô sân khớp đúng 1 ô cỏ của ảnh.
+   ===================================================================== */
+:root{--tile:clamp(50px, calc((100vh - var(--top) - 26px) / 7.69), 140px)}
+.board{--k:calc(var(--tile) / 312);
+  grid-template-columns:repeat(5,calc(312 * var(--k)));
+  grid-template-rows:calc(313 * var(--k)) calc(309.5 * var(--k)) calc(313.5 * var(--k)) calc(314 * var(--k)) calc(322 * var(--k)) calc(318 * var(--k)) calc(299 * var(--k));
+  padding:calc(102 * var(--k)) calc(115 * var(--k)) calc(109 * var(--k)) calc(117 * var(--k));
+  background:#5d8a3a url(assets/board/play-area.webp) 0 0/calc(1792 * var(--k)) calc(2400 * var(--k)) no-repeat;
+  border-radius:24px;box-shadow:0 18px 44px rgb(0 0 0/.5),0 0 0 3px rgb(20 50 20/.35)}
+.board::before{display:none}
+.board .gridB,.board .gridP{grid-template-columns:subgrid;grid-template-rows:subgrid}
+.board .cell{z-index:1}
+
+/* vùng 3×3 = bóng cây đổ xuống (không khung, không viền) */
+.board .gridB::after,.board .gridP::after{content:"";position:absolute;inset:-5% -6%;border:0;box-shadow:none;pointer-events:none;z-index:0;
+  border-radius:46% 40% 44% 50%/40% 48% 42% 46%;filter:blur(10px);mix-blend-mode:multiply;
+  background:radial-gradient(ellipse 58% 52% at 46% 50%,rgb(16 48 20/.34),rgb(16 48 20/.24) 58%,transparent 80%),
+             radial-gradient(ellipse 34% 28% at 80% 20%,rgb(16 48 20/.22),transparent 72%),
+             radial-gradient(ellipse 30% 26% at 16% 82%,rgb(16 48 20/.2),transparent 72%)}
+.board .gridP::after{border-radius:42% 50% 46% 40%/48% 40% 46% 42%;
+  background:radial-gradient(ellipse 58% 52% at 54% 48%,rgb(16 48 20/.34),rgb(16 48 20/.24) 58%,transparent 80%),
+             radial-gradient(ellipse 32% 28% at 18% 18%,rgb(16 48 20/.22),transparent 72%),
+             radial-gradient(ellipse 30% 26% at 84% 84%,rgb(16 48 20/.2),transparent 72%)}
+/* đốm nắng xuyên qua tán lá */
+.board .gridB::before,.board .gridP::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;mix-blend-mode:screen;filter:blur(3px);opacity:.75;
+  background:radial-gradient(circle at 22% 30%,rgb(255 248 200/.28) 0 3%,transparent 5%),radial-gradient(circle at 63% 18%,rgb(255 248 200/.22) 0 2.5%,transparent 4.5%),
+             radial-gradient(circle at 74% 66%,rgb(255 248 200/.24) 0 3.5%,transparent 5.5%),radial-gradient(circle at 38% 78%,rgb(255 248 200/.2) 0 2%,transparent 4%),
+             radial-gradient(circle at 50% 45%,rgb(255 248 200/.14) 0 4%,transparent 7%)}
+.board .gridP::before{transform:scaleX(-1)}
+
+/* dải chọn mục tiêu kỹ năng: giống dải năng lượng nhưng VÀNG và to hơn 1 chút; đầu = vòng tròn vàng nét đứt */
+.beam.aim .glow{stroke:#ffd23f;stroke-width:20;opacity:.4}
+.beam.aim .edge{stroke:none}
+.beam.aim .core{stroke:#ffd23f;stroke-width:6;stroke-dasharray:none;animation:breathe 1.6s ease-in-out infinite}
+.beam.aim .head{display:none}
+.beam.aim .ring{display:block;fill:rgb(255 210 63/.18);stroke:#ffd23f;stroke-width:3.5;r:13}
+.beam.aim.lock .ring{r:18;stroke-width:4.5}
+
+/* ô Huỷ gán (đen trong mờ) dưới ô Kết thúc lượt */
+.slot-cancel{grid-area:5/5}
+.btn.dark{background:rgb(20 16 40/.55);color:#fff;border:2px solid rgb(255 255 255/.35);box-shadow:0 4px 0 rgb(0 0 0/.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.bslot .btn.dark:disabled{opacity:.28}
+.slot-cancel.on .btn{animation:cancelglow 1.4s ease-in-out infinite}
+@keyframes cancelglow{50%{box-shadow:0 4px 0 rgb(0 0 0/.45),0 0 0 4px rgb(255 210 63/.65)}}
+.banner .btn.dark{color:#fff}
+
+/* +✦ trên viên xí ngầu: bấm để đổi thành năng lượng; tinh linh sáng bay về */
+.die .dtag{cursor:pointer;font-family:var(--body);font-size:11px;padding:0 4px;line-height:1.35;left:-7px;bottom:-8px;z-index:3}
+button.dtag:hover{background:#a77bff;transform:scale(1.12)}
+.sprite{position:fixed;left:0;top:0;width:13px;height:13px;margin:-6px 0 0 -6px;border-radius:50%;pointer-events:none;z-index:60;
+  background:radial-gradient(circle,#fff 0 25%,#e3d2ff 45%,rgb(170 120 255/0) 72%);box-shadow:0 0 14px 5px rgb(190 150 255/.75)}
+.energy img.pop{animation:orbpop .65s ease-out}
+@keyframes orbpop{0%{transform:scale(.6);filter:brightness(2) drop-shadow(0 0 12px #c9a8ff)}45%{transform:scale(1.45);filter:brightness(1.5) drop-shadow(0 0 12px #c9a8ff)}100%{transform:scale(1)}}
+
+/* viên năng lượng to bằng viên xí ngầu; ô "Bạn" cao bằng ô lá bài */
+:root{--toph:calc((100vh - var(--top) - 24px) * .6);--die:max(34px, calc(var(--tile) * .42))}
+.col-log .cardview{height:var(--toph);max-height:none;flex:none}
+#infoP{height:var(--toph);flex:none;overflow:auto;display:flex;flex-direction:column}
+#infoP .pwrap{flex:1}
+.ebox .orbs{display:flex;justify-content:center;gap:10px;margin:6px 0 4px}
+.ebox .orbs .energy img{width:var(--die);height:var(--die);opacity:.18;filter:grayscale(.6)}
+.ebox .orbs .energy img.on{opacity:1;filter:drop-shadow(0 0 6px rgb(170 120 255/.7))}
+.ebox .orbs .energy{gap:10px}
+
+/* lá bài nhỏ trong Máy / Vách che / Công trình to bằng hoặc hơn viên xí ngầu */
+.mini-cards img{width:calc(var(--die) + 4px);border-radius:5px}
+.mini-cards img.artmini{width:calc(var(--die) + 4px);height:calc(var(--die) + 4px)}
+.hcard{width:calc(var(--die) + 22px)}
+/* ô Lượt gọn lại */
+.steps{gap:4px;padding:7px}
+.step{padding:4px 7px}
+.step b{font-size:12.5px}.step small{font-size:10.5px;line-height:1.2}
+.steps .whoturn{font-size:15px}
+
+/* xe đã dùng: xám đi; nhà hết lượt: giữ nguyên màu */
+.hcard.used{cursor:default}.hcard.used:hover{transform:none}
+.hcard.used img{filter:grayscale(.85) brightness(.92);opacity:.85}
+.flysmall{position:fixed;z-index:45;pointer-events:none;border-radius:6px;box-shadow:0 8px 20px rgb(0 0 0/.4)}
+.board .bldctl span{font-size:10.5px;white-space:nowrap}
+
+@media (max-width:1100px){
+  :root{--tile:clamp(48px, calc((100vw - 18px) / 5.74), 120px)}
+  .col-log .cardview,#infoP{height:auto}
+}

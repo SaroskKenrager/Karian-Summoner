@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '7.5.0';   // trùng với ?v= trong index.html
+const APP_VER = '7.6.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -115,6 +115,36 @@ function setStep(n) { if (!S) return; S.step = n; renderSteps(); }
 /** D · Bước 3 (Gán): viên không có quái cùng màu trên sân → +1 ✦ NGAY (dùng được trong lượt này, như Engine v6.5).
  *  Gọi khi người chơi bắt đầu gán / tiêu ✦ / kết thúc lượt; Máy gọi sau lần thảy lại miễn phí.
  *  Viên mặt 6 đang cần cho kỹ năng đa sắc thì giữ lại. */
+/** hiệu ứng: viên xí ngầu bung thành tinh linh sáng, bay về viên năng lượng, viên năng lượng phóng to rồi sáng lên */
+function flyEnergy(fromRect, orbIndex) {
+  if (!fromRect || !document.body.animate) return;
+  const orbs = document.querySelectorAll('#infoP .energy img'), orb = orbs[Math.min(orbIndex, orbs.length - 1)];
+  if (!orb) return;
+  const r1 = orb.getBoundingClientRect(), x0 = fromRect.left + fromRect.width / 2, y0 = fromRect.top + fromRect.height / 2;
+  const x1 = r1.left + r1.width / 2, y1 = r1.top + r1.height / 2, N = 9;
+  for (let k = 0; k < N; k++) {
+    const sp = document.createElement('i'); sp.className = 'sprite'; document.body.appendChild(sp);
+    const a = (k / N) * Math.PI * 2, burst = 26 + Math.random() * 18, bx = x0 + Math.cos(a) * burst, by = y0 + Math.sin(a) * burst;
+    const midx = (bx + x1) / 2 + (Math.random() - .5) * 120, midy = Math.min(by, y1) - 60 - Math.random() * 60;
+    sp.animate([
+      { transform: `translate(${x0}px,${y0}px) scale(.4)`, opacity: 0 },
+      { transform: `translate(${bx}px,${by}px) scale(1.1)`, opacity: 1, offset: .22 },
+      { transform: `translate(${midx}px,${midy}px) scale(.9)`, opacity: 1, offset: .6 },
+      { transform: `translate(${x1}px,${y1}px) scale(.3)`, opacity: .2 }
+    ], { duration: 900 + k * 45, easing: 'cubic-bezier(.4,0,.3,1)', fill: 'forwards' }).finished.then(() => sp.remove());
+  }
+  setTimeout(() => { const o2 = document.querySelectorAll('#infoP .energy img')[Math.min(orbIndex, 2)]; if (o2) { o2.classList.remove('pop'); void o2.offsetWidth; o2.classList.add('pop'); } }, 1250);
+}
+/** người chơi bấm "+✦": đổi ngay 1 viên không có quái cùng màu thành ✦ */
+function dieToEnergy(k) {
+  const s = side('P'), d = s.dice[k];
+  if (!d || d.used || S.busy || S.turn !== 'P' || T().noEnergy || monsOf('P').some(i => M(s.grid[i]).element === d.el)) return;
+  const el = document.querySelector(`.die[data-die="${k}"]`), rect = el && el.getBoundingClientRect();
+  d.used = true; d.toE = true;
+  const b = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + 1); S.stats.P.gained += s.energy - b;
+  log(`Bạn đổi viên ${EL_VI[d.el]} ${d.face} (không có quái cùng màu) → ${s.energy > b ? '+1 ✦' : '✦ đã đầy 3, bỏ'}`, 'P');
+  render(); flyEnergy(rect, Math.max(0, s.energy - 1));
+}
 function lockDead(o) {
   const s = side(o); if (!s.rolled || s.locked) return 0;
   s.locked = true; if (T().noEnergy) return 0;
@@ -122,8 +152,10 @@ function lockDead(o) {
   const needs6 = new Set(); monsOf(o).forEach(i => M(s.grid[i]).skills.forEach(sk => { if (sk.multicolor === 'any6') needs6.add('*'); else (sk.multicolor || []).forEach(([e]) => needs6.add(e)); }));
   const dead = s.dice.filter(d => !d.used && !els.has(d.el) && !(d.face === 6 && (needs6.has(d.el) || needs6.has('*'))));
   if (!dead.length) return 0;
+  const rects = o === 'P' ? dead.map(d => { const el = document.querySelector(`.die[data-die="${s.dice.indexOf(d)}"]`); return el && el.getBoundingClientRect(); }) : [];
   dead.forEach(d => { d.used = true; d.toE = true; });
   const b = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + dead.length); S.stats[o].gained += s.energy - b;
+  if (o === 'P') setTimeout(() => rects.forEach((r, k) => setTimeout(() => flyEnergy(r, Math.min(2, b + k)), k * 160)), 0);
   log(`${who(o)}: ${dead.length} viên không có quái cùng màu (${dead.map(d => EL_VI[d.el]).join(', ')}) → +${s.energy - b} ✦${s.energy - b < dead.length ? ' (đầy 3, phần dư bỏ)' : ''}`, o);
   render(); return dead.length;
 }
@@ -184,7 +216,7 @@ async function damage(srcO, att, to, ti, v, ctx, direct, single) {
   // Xe Frost Coach: chặn 1 đòn đơn vào đồng đội kề xe, rồi rời sân
   if (single && !direct) {
     const cj = adjIdx(ti).find(j => tg[j] && tg[j].kind === 'bld' && BLD[tg[j].id].effect === 'block');
-    if (cj !== undefined) { const car = tg[cj]; tg[cj] = null; side(to).bldUsed.push(car); ctx.blocked.add(ti); S.stats[to].blds.push(car.id); notify(`🚌 ${esc(BLD[car.id].name)} chặn đòn vào ${uName(t)} rồi rời sân`, to); render(); return; }
+    if (cj !== undefined) { const car = tg[cj]; if (to === 'P') flyCardTo(document.querySelector(`.cell[data-o="P"][data-i="${cj}"]`), bldImg(car.id), document.getElementById('bldArea')); tg[cj] = null; side(to).bldUsed.push(car); ctx.blocked.add(ti); S.stats[to].blds.push(car.id); notify(`🚌 ${esc(BLD[car.id].name)} chặn đòn vào ${uName(t)} rồi rời sân`, to); render(); return; }
   }
   const prev = t.hp;
   let d = direct ? v : calcDmg(att, t, v, ctx);
@@ -271,6 +303,7 @@ function allyOptions(code, o, src, si) {
   }
   return { auto: [] };
 }
+const CANCEL = Symbol('huỷ gán');   // chooser trả về CANCEL = người chơi huỷ gán xí ngầu
 const ENEMY_CODES = ['one', 'other', 'anyE', 'adjE', 'three', 'row', 'col', 'cross', 'all', 'tauntE'];
 const SINGLE_CODES = ['one', 'other', 'anyE', 'tauntE'];
 
@@ -285,11 +318,17 @@ async function runEffects(o, src, si, effects, chooser, label, fromDead) {
     if (e.k === 'en') { const s = side(o), b = s.energy; s.energy = Math.min(D.rules.energy.cap, s.energy + e.v); S.stats[o].gained += s.energy - b; log(`${who(o)} +${s.energy - b} ✦`, o); render(); continue; }
     const enemy = ENEMY_CODES.includes(e.t);
     let targets = ctx.tg[e.t];
+    const confirming = chooser === playerChooser && S.assignCtx && !S.assignCtx.confirmed;
     if (!targets) {
       const op = enemy ? enemyOptions(e.t, o, att, ctx) : allyOptions(e.t, o, src, si);
-      if (op.auto) targets = op.auto;
+      if (op.auto) {
+        targets = op.auto;
+        // mục tiêu tự động (cả đội, mình, cả sân địch…): vẫn bật dải sáng để bạn xác nhận hoặc huỷ gán
+        if (confirming && targets.length) { const r = await chooser({ o, side: enemy ? fo : o, src, effect: e, opts: [targets], pick: 1, label, ctx, confirm: true }); if (r === CANCEL) { ctx.cancelled = true; return ctx; } }
+      }
       else if (!op.opts.length) targets = [];
-      else { targets = await chooser({ o, side: enemy ? fo : o, src, effect: e, opts: op.opts, pick: op.pick, center: op.center, label, ctx }); if (!targets || !targets.length) ctx.skipped = true; }
+      else { targets = await chooser({ o, side: enemy ? fo : o, src, effect: e, opts: op.opts, pick: op.pick, center: op.center, label, ctx, mustShow: confirming }); if (targets === CANCEL) { ctx.cancelled = true; return ctx; } if (!targets || !targets.length) ctx.skipped = true; }
+      if (confirming && targets && targets.length) S.assignCtx.confirmed = true;
       if (o === 'B' && enemy && targets && targets.length && S.turn === 'B') { targets.forEach(i => fx(fo, i, 'fx-aim', 520)); await sleep(480); }
       ctx.tg[e.t] = targets;
     }
@@ -325,8 +364,19 @@ async function runHouse(o, i) {
   const B = BLD[b.id]; b.counter--; S.acting = { o, i }; render();
   notify(`🏠 ${esc(B.name)}: ${esc(B.text_vn)} (còn 🎲${b.counter})`, o);
   await runEffects(o, b, i, bldEffects(B), o === 'P' ? playerChooser : aiChooser, B.name);
-  if (b.counter === 0) log(`${esc(B.name)} hết xí ngầu trắng → làm cảnh`, o);
+  if (b.counter === 0) log(`${esc(B.name)} còn 0 lần kích hoạt`, o);
   S.acting = null; render();
+}
+/** thẻ bay từ 1 ô về 1 khu vực (thu nhỏ dần) */
+function flyCardTo(fromEl, src, toEl) {
+  if (!fromEl || !toEl || !document.body.animate) return;
+  const r0 = fromEl.getBoundingClientRect(), r1 = toEl.getBoundingClientRect();
+  const fly = document.createElement('img'); fly.className = 'flysmall'; fly.src = src; document.body.appendChild(fly);
+  const w = r0.width * .8, h = w * 88 / 63;
+  Object.assign(fly.style, { left: r0.left + r0.width / 2 - w / 2 + 'px', top: r0.top + r0.height / 2 - h / 2 + 'px', width: w + 'px', height: h + 'px' });
+  const dx = r1.left + 40 - (r0.left + r0.width / 2), dy = r1.bottom - 50 - (r0.top + r0.height / 2);
+  fly.animate([{ transform: 'translate(0,0) scale(1) rotate(0)', opacity: 1 }, { transform: `translate(${dx * .5}px,${dy * .5 - 60}px) scale(.9) rotate(-8deg)`, opacity: 1, offset: .5 }, { transform: `translate(${dx}px,${dy}px) scale(.45) rotate(0)`, opacity: .5 }],
+    { duration: 850, easing: 'cubic-bezier(.4,0,.3,1)', fill: 'forwards' }).finished.then(() => fly.remove());
 }
 async function useVehicle(o, i) {
   const b = side(o).grid[i]; if (!b || b.kind !== 'bld') return; const B = BLD[b.id];
@@ -337,6 +387,7 @@ async function useVehicle(o, i) {
   const ctx = await runEffects(o, b, i, bldEffects(B), playerChooser, B.name);
   S.busy = false; S.acting = null;
   if (ctx && ctx.skipped) { log(`Hủy dùng ${esc(B.name)} — xe ở lại sân`, 'P'); render(); return; }
+  flyCardTo(document.querySelector(`.cell[data-o="${o}"][data-i="${i}"]`), bldImg(b.id), document.getElementById('bldArea'));
   if (side(o).grid[i] === b) side(o).grid[i] = null;
   side(o).bldUsed.push(b); S.stats[o].blds.push(b.id);
   log(`${esc(B.name)} đã giúp xong → rời sân`, 'P'); render();
@@ -387,15 +438,16 @@ function playerChooser(req) {
   // chỉ còn 1 lựa chọn → tự chọn; trừ khi đó là do Khiêu khích kéo đòn (để bạn thấy quái nào đang che)
   const g = side(req.side).grid;
   const tauntForced = req.side !== req.o && SINGLE_CODES.includes(req.effect.t) && req.opts.some(op => isMon(g[op[0]]) && isTaunt(g[op[0]]) && adjIdx(op[0]).some(j => isMon(g[j]) && !req.opts.some(x => x[0] === j)));
-  if (req.opts.length === 1 && req.pick === 1 && !tauntForced) return Promise.resolve(req.opts[0]);
+  if (req.opts.length === 1 && req.pick === 1 && !tauntForced && !req.mustShow && !req.confirm) return Promise.resolve(req.opts[0]);
   return new Promise(resolve => {
     const chosen = [];
     pendingPick = { req, chosen, resolve };
     if (!beam && S.beamKind !== 'nrg') { const a = S.acting && document.querySelector(`.cell[data-o="${S.acting.o}"][data-i="${S.acting.i}"] .art`); S.beamFromRect = a ? a.getBoundingClientRect() : null; S.beamKind = 'aim'; }
     setTimeout(() => { if (pendingPick && pendingPick.req === req && S.beamFromRect) startBeam(S.beamFromRect, S.beamKind || 'aim'); }, 0);
     const eff = req.effect, kind = { d: `⚔ ${eff.v} sát thương`, h: `hồi ${eff.v} ❤`, s: `+${eff.v} Khiên`, st: `gây ${eff.v}`, bf: `${eff.v}` }[eff.k] || '';
-    banner(`<span><b>${esc(req.label)}</b>: chọn ${req.pick > 1 ? req.pick + ' mục tiêu' : 'mục tiêu'} (${esc(eff.printed || '')}) · ${kind}</span>` +
-      (req.pick > 1 ? `<button class="btn sm" data-pick="done">Xong</button>` : '') + `<button class="btn sm warn" data-pick="skip">Bỏ qua</button>`);
+    const canCancel = S.assignCtx && !S.assignCtx.confirmed;
+    banner(`<span><b>${esc(req.label)}</b>: ${req.confirm ? 'chạm 1 mục tiêu sáng để xác nhận' : 'chọn ' + (req.pick > 1 ? req.pick + ' mục tiêu' : 'mục tiêu')} (${esc(eff.printed || '')}) · ${kind}</span>` +
+      (req.pick > 1 ? `<button class="btn sm" data-pick="done">Xong</button>` : '') + (canCancel ? `<button class="btn sm dark" data-act="cancelassign">↶ Huỷ gán</button>` : `<button class="btn sm warn" data-pick="skip">Bỏ qua</button>`));
     render();
   });
 }
@@ -413,7 +465,7 @@ function startBeam(from, kind) {
 function moveBeam(x, y) {
   if (!beam) return;
   const svg = document.getElementById('beam');
-  const t = document.elementFromPoint(x, y), hit = t && t.closest('.cell.target, .cell.ally-target, .die:not(.used)');
+  const t = document.elementFromPoint(x, y), hit = t && t.closest('.cell.target, .cell.ally-target, .die:not(.used), .slot-cancel .btn:not(:disabled)');
   let ex = x, ey = y;
   if (hit) { const r = hit.getBoundingClientRect(); ex = r.left + r.width / 2; ey = r.top + r.height / 2; }
   const cx = (beam.x + ex) / 2, cy = Math.min(beam.y, ey) - Math.max(40, Math.abs(ex - beam.x) * 0.25);
@@ -430,10 +482,12 @@ function moveBeam(x, y) {
 }
 function stopBeam() { beam = null; const svg = document.getElementById('beam'); if (svg) svg.setAttribute('class', 'beam'); }
 document.addEventListener('mousemove', e => { if (beam) moveBeam(e.clientX, e.clientY); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && pendingPick && S && S.assignCtx && !S.assignCtx.confirmed) finishPick(CANCEL); });
 function onPickCell(o, i) {
   const p = pendingPick; if (!p) return false;
   if (o !== p.req.side) { toast('Chọn ô được viền sáng.'); return true; }
   const op = p.req.opts.find(x => (p.req.pick === 1 && !p.req.center) ? x.includes(i) : x[0] === i);
+  if (op && p.req.confirm) { finishPick(op); return true; }
   if (!op) { toast('Ô này không hợp lệ (Cận chiến / Khiêu khích / tầm đánh).'); return true; }
   if (p.req.pick === 1) { finishPick(op); return true; }
   if (!p.chosen.includes(i)) p.chosen.push(i);
@@ -594,16 +648,23 @@ async function assignDie(di, ci) {
   if (die.el !== M(u).element) { toast(`Viên ${EL_VI[die.el]} chỉ kích hoạt quái hệ ${EL_VI[die.el]}.`); return; }
   if (u.st.stun) { toast(`${M(u).name} đang Choáng, không dùng được kỹ năng.`); return; }
   if (u.acted) { toast('Mỗi quái chỉ kích hoạt 1 lần mỗi lượt.'); return; }
+  const face0 = die.face, gift0 = u.giftUsed;
   let f = findSkill(u, die, s.dice);
   // Thiên phú (Flarevix): 1 lần/trận đổi xí ngầu thành mặt 6
   const tb = M(u).trait_bot;
   if (tb && tb.k === 'gifted' && !u.giftUsed && die.face !== 6 && confirm(`${M(u).name} – ${tb.n}: đổi viên này thành mặt 6? (1 lần/trận)`)) { die.face = 6; u.giftUsed = true; f = findSkill(u, die, s.dice); notify(`${uName(u)} · Thiên phú <i>${esc(tb.n)}</i>: xí ngầu thành mặt 6`, 'P'); }
-  if (!f) { toast(`Mặt ${die.face} là mặt trống của ${M(u).name}${die.face === 6 ? ' (hoặc thiếu xí ngầu phụ)' : ''}: không kích hoạt.`); return; }
+  if (!f) { die.face = face0; u.giftUsed = gift0; toast(`Mặt ${die.face} là mặt trống của ${M(u).name}${die.face === 6 ? ' (hoặc thiếu xí ngầu phụ)' : ''}: không kích hoạt.`); return; }
   die.used = true; f.extra.forEach(j => (s.dice[j].used = true)); u.acted = true; die.sel = false; picked = null; S.hoverDie = null;
-  S.busy = true; S.acting = { o: 'P', i: ci }; setStep(4); render();
+  S.busy = true; S.acting = { o: 'P', i: ci }; S.assignCtx = { confirmed: false }; setStep(4); render();
+  const ctx = await runEffects('P', u, ci, f.skill.effects, playerChooser, f.skill.name);
+  S.assignCtx = null; S.busy = false; S.acting = null; S.beamFromRect = null; S.beamKind = null;
+  if (ctx && ctx.cancelled) {
+    // ↶ Huỷ gán: trả xí ngầu về khay, quái chưa kích hoạt
+    die.used = false; f.extra.forEach(j => (s.dice[j].used = false)); u.acted = false; die.face = face0; u.giftUsed = gift0; die.anim = true;
+    log(`↶ Huỷ gán: viên ${EL_VI[die.el]} ${die.face} trở về khay (${uName(u)} chưa thi triển)`, 'P');
+    setStep(3); render(true); return;
+  }
   log(`${uName(u)} · <b>${esc(f.skill.name)}</b>${f.skill.tier === 'U' ? ' ★' : ''} (${EL_VI[die.el]} ${die.face})`, 'P');
-  await runEffects('P', u, ci, f.skill.effects, playerChooser, f.skill.name);
-  S.busy = false; S.acting = null; S.beamFromRect = null; S.beamKind = null;
   if (!S.over) setStep(s.dice.some(d => !d.used && activators('P', d, s.dice).length) ? 3 : 4);
   render();
 }
@@ -940,9 +1001,9 @@ function renderGrid(o) {
       const b = BLD[u.id];
       const drag = o === 'P' ? `draggable="true" data-drag='${JSON.stringify({ type: 'cell', i })}'` : '';
       const ctl = b.kind === 'house'
-        ? (u.counter > 0 ? `<button data-adj="cnt-">−</button><span title="xí ngầu trắng: số lần kích hoạt còn lại">🎲 ${u.counter}</span><button data-adj="cnt+">+</button>` : `<span>Làm cảnh</span>`)
+        ? `<button data-adj="cnt-">−</button><span title="xí ngầu trắng: số lần kích hoạt còn lại">🎲 ${u.counter}${u.counter ? '' : ' lần kích hoạt'}</span><button data-adj="cnt+">+</button>`
         : b.trigger === 'use' ? `<button data-adj="use">▶ Dùng xe</button>` : `<span title="${esc(b.text_vn)}">🛡 Tự chặn đòn</span>`;
-      inner = `<div class="unit bld ${b.kind === 'house' && !u.counter ? 'deco' : ''}" ${drag} data-view="${o}:${i}"><span class="base"></span><img class="art" src="${bldArt(u.id)}" alt="${esc(b.name)}" draggable="false"><span class="uname">${b.kind === 'house' ? '🏠' : '🚌'} ${esc(b.name)}</span><div class="bldctl">${ctl}</div></div>`;
+      inner = `<div class="unit bld" ${drag} data-view="${o}:${i}"><span class="base"></span><img class="art" src="${bldArt(u.id)}" alt="${esc(b.name)}" draggable="false"><span class="uname">${b.kind === 'house' ? '🏠' : '🚌'} ${esc(b.name)}</span><div class="bldctl">${ctl}</div></div>`;
     } else inner = (f && f.data && f.data.id ? `<div class="unit ghost"><img class="art" src="${artImg(f.data.id)}" alt=""></div>` : '') + `<div class="empty-hint">${o === 'P' && (S.phase === 'place' || S.turn === 'P') ? ROW_VI[rowOf(i)] : ''}</div>`;
     return `<div class="${cls.join(' ')}" data-o="${o}" data-i="${i}"${f ? ` style="--fxd:-${Math.round(f.el)}ms"` : ''}>${inner}</div>`;
   }).join('');
@@ -950,6 +1011,9 @@ function renderGrid(o) {
 /** Hàng xí ngầu giữa bàn + 3 ô nút trên bàn (Thảy / Kết thúc lượt / Gợi ý) */
 function renderTray(animDice) {
   const el = $('#tray'), sR = $('#slotRoll'), sE = $('#slotEnd'), sH = $('#slotHint');
+  const canCancel = !!(pendingPick && S.assignCtx && !S.assignCtx.confirmed);
+  $('#slotCancel').innerHTML = `<button class="btn dark" data-act="cancelassign" ${canCancel ? '' : 'disabled'} title="Huỷ gán: trả xí ngầu về khay (hoặc nhấn Esc)"><b>↶</b>Huỷ gán</button>`;
+  $('#slotCancel').classList.toggle('on', canCancel);
   const btn = (act, ico, txt, cls, on, tip) => `<button class="btn ${cls}" data-act="${act}" ${on ? '' : 'disabled'} ${tip ? `title="${esc(tip)}"` : ''}><b>${ico}</b>${txt}</button>`;
   sH.innerHTML = btn('hint', '💡', 'Gợi ý', 'ghost', S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over, 'Trợ lý gợi ý nước đi');
   if (S.phase === 'place') {
@@ -965,7 +1029,7 @@ function renderTray(animDice) {
     const drag = o === 'P' && !d.used ? `draggable="true" data-drag='${JSON.stringify({ type: 'die', di: k })}'` : '';
     const anim = (animDice && d.anim !== false) ? ' rolling' : ''; d.anim = false;
     const tip = d.toE ? 'đã thành ✦' : nomon ? 'không có quái cùng màu → thành ✦ khi bạn bắt đầu gán' : blank ? 'mặt trống / quái đã dùng: không kích hoạt, không thành ✦' : `kéo lên quái hệ ${EL_VI[d.el]} để thi triển, chạm để chọn`;
-    return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}<img class="eic" src="${elIcon(d.el)}" alt="">${d.toE ? '<span class="dtag">✦</span>' : (!d.used && o === 'P' && nomon ? '<span class="dtag">+✦</span>' : '')}</div>`;
+    return `<div class="die${d.sel ? ' sel' : ''}${d.used ? ' used' : ''}${anim}" style="background:${COL[d.el]}" ${drag} data-die="${k}" title="${EL_VI[d.el]} · mặt ${d.face} — ${tip}">${dieSvg(d.face, d.el)}<img class="eic" src="${elIcon(d.el)}" alt="">${d.toE ? '<span class="dtag">✦</span>' : (!d.used && o === 'P' && nomon && !T().noEnergy ? `<button class="dtag" data-toenergy="${k}" title="Bấm: đổi viên này thành 1 ✦ ngay">+✦</button>` : '')}</div>`;
   }).join('');
   const myTurn = o === 'P' && !S.busy;
   sE.innerHTML = btn('endturn', '⏭', 'Kết thúc lượt', 'warn', myTurn);
@@ -990,8 +1054,8 @@ function renderInfo(o) {
   if (!T().noEnergy) {
     if (o === 'P') {
       const my = S.phase === 'play' && S.turn === 'P' && !S.busy && !S.over;
-      const acts = energyActions().map(a => `<button class="eact" data-eact="${a.id}" ${my && a.ok ? '' : 'disabled'} title="${esc(a.why || a.d)}"><b>${a.c}✦</b><span>${a.t}${a.tag ? ` <em>${a.tag}</em>` : ''}</span></button>`).join('');
-      energy = `<div class="ebox" title="Viên không có quái cùng màu +1 ✦ · giữ tối đa 3"><div class="ehead"><b>Năng lượng</b>${energyHtml(s.energy)}<span class="eadj"><button class="btn sm" data-energy="-" title="chỉnh tay">−</button><button class="btn sm" data-energy="+" title="chỉnh tay">+</button></span></div>
+      const acts = energyActions().map(a => `<button class="eact" data-eact="${a.id}" ${my && a.ok ? '' : 'disabled'} title="${esc(a.why || a.tip || a.t)}"><b>${a.c}✦</b><span>${a.t}${a.tag ? ` <em>${a.tag}</em>` : ''}</span></button>`).join('');
+      energy = `<div class="ebox" title="Viên không có quái cùng màu +1 ✦ · giữ tối đa 3"><div class="ehead"><b>Năng lượng</b><span class="eadj"><button class="btn sm" data-energy="-" title="chỉnh tay">−</button><button class="btn sm" data-energy="+" title="chỉnh tay">+</button></span></div><div class="orbs">${energyHtml(s.energy)}</div>
         <small class="muted">Viên không có quái cùng màu +1 · giữ tối đa 3${houseActive('P') ? ' · 🏠 Nhà còn xí ngầu → cuối lượt chỉ giữ 2' : ''}</small><div class="eacts">${acts}</div></div>`;
     } else energy = `<div class="meters">${energyHtml(s.energy)}</div>`;
   }
@@ -1004,12 +1068,12 @@ function renderInfo(o) {
 function energyActions() {
   const s = side('P'), t = T(), rolled = s.rolled, anyDie = s.dice.some(d => !d.used);
   const A = [
-    { id: 'reroll', c: 1, t: 'Thảy lại 1 xí ngầu', ok: s.energy >= 1 && rolled && anyDie, why: !rolled ? 'Thảy xí ngầu trước' : '' },
-    { id: 'shield', c: 2, t: '+2 Khiên cho 1 quái', ok: s.energy >= 2 && monsOf('P').length > 0 },
-    { id: 'move', c: 2, t: 'Dời 1 quái sang ô trống', tag: 'Chuẩn', ok: t.energyActs && s.energy >= 2 && monsOf('P').length > 0, why: t.energyActs ? '' : `Tầng ${t.name} chưa dùng` },
-    { id: 'recolor', c: 3, t: 'Đổi màu 1 xí ngầu', tag: 'Chuẩn', ok: t.energyActs && s.energy >= 3 && rolled && (anyDie || s.dice.some(d => d.toE)) && !houseActive('P'), why: !t.energyActs ? `Tầng ${t.name} chưa dùng` : houseActive('P') ? 'Nhà còn xí ngầu: không đổi màu' : '' }
+    { id: 'reroll', c: 1, t: 'Thảy lại 1 viên', ok: s.energy >= 1 && rolled && anyDie, why: !rolled ? 'Thảy xí ngầu trước' : '' },
+    { id: 'shield', c: 2, t: '+2 Khiên 1 quái', ok: s.energy >= 2 && monsOf('P').length > 0 },
+    { id: 'move', c: 2, t: 'Dời 1 quái', tip: 'Dời 1 quái sang ô trống (tầng Chuẩn)', ok: t.energyActs && s.energy >= 2 && monsOf('P').length > 0, why: t.energyActs ? '' : `Tầng ${t.name} chưa dùng` },
+    { id: 'recolor', c: 3, t: 'Đổi màu 1 viên', tip: 'Đổi màu 1 xí ngầu (tầng Chuẩn)', ok: t.energyActs && s.energy >= 3 && rolled && (anyDie || s.dice.some(d => d.toE)) && !houseActive('P'), why: !t.energyActs ? `Tầng ${t.name} chưa dùng` : houseActive('P') ? 'Nhà còn xí ngầu: không đổi màu' : '' }
   ];
-  if (S.buildings) A.push({ id: 'draw', c: 2, t: 'Rút 1 Công trình', tag: 'Mở rộng', ok: s.energy >= 2 && S.bldDeck.length > 0 && !s.drew, why: s.drew ? 'Mỗi lượt rút 1 lá' : '' });
+  if (S.buildings) A.push({ id: 'draw', c: 2, t: 'Rút Công trình', tip: 'Rút 1 lá Công trình & Xe (bản mở rộng)', ok: s.energy >= 2 && S.bldDeck.length > 0 && !s.drew, why: s.drew ? 'Mỗi lượt rút 1 lá' : '' });
   return A;
 }
 /** chọn 1 xí ngầu (cho hành động ✦) */
@@ -1128,13 +1192,14 @@ function renderHand() {
     const deck = S.bldDeck.length;
     $('#bldArea').innerHTML = `<h3 style="margin-top:8px">Công trình & Xe <small>(mở rộng)</small></h3>
       <div class="handcards">${s.bldHand.map(b => `<div class="hcard" draggable="true" data-drag='${JSON.stringify({ type: 'bld', uid: b.uid })}' data-bldh="${b.uid}" data-view="b:${b.uid}"><img src="${bldImg(b.id)}" alt="${esc(BLD[b.id].name)}"></div>`).join('')}
-      ${s.bldHand.length ? '' : '<span class="muted">Bấm chồng thẻ cạnh bảng Năng lượng để rút.</span>'}</div>`;
+      ${s.bldHand.length ? '' : '<span class="muted">Bấm chồng thẻ cạnh bảng Năng lượng để rút.</span>'}</div>
+      ${s.bldUsed.length ? `<div class="lbl">Đã dùng</div><div class="handcards">${s.bldUsed.map(b => `<div class="hcard used" data-view="u:${b.uid}" title="${esc(BLD[b.id].name)} — đã dùng"><img src="${bldImg(b.id)}" alt=""></div>`).join('')}</div>` : ''}`;
   } else $('#bldArea').innerHTML = '';
 }
 function findView(key) {
   if (!key) return null; const [a, b] = key.split(':');
   if (a === 'P' || a === 'B') { const u = side(a).grid[+b]; return u ? { u, o: a, i: +b } : null; }
-  const uid = +b, all = ['P', 'B'].flatMap(o => [...side(o).reserve, ...side(o).trophies, ...side(o).bldHand]);
+  const uid = +b, all = ['P', 'B'].flatMap(o => [...side(o).reserve, ...side(o).trophies, ...side(o).bldHand, ...side(o).bldUsed]);
   const u = all.find(x => x.uid === uid); return u ? { u } : null;
 }
 /* thẻ lớn: hiện khi trỏ chuột vào quái / thẻ, ẩn khi rời đi; bấm vào quái để ghim (hiện nút chỉnh ❤, Khiên, trạng thái) */
@@ -1155,7 +1220,7 @@ function renderViewerInner(v, el) {
   const u = v.u;
   if (u.kind === 'bld') {
     const b = BLD[u.id];
-    const ctl = v.o === 'P' ? (b.kind === 'house' ? (u.counter > 0 ? `<p>🎲 còn ${u.counter} lần · tự kích hoạt ${b.trigger === 'start' ? 'Đầu' : 'Cuối'} lượt bạn. <button class="btn sm" data-vadj="house">▶ Chạy ngay</button></p>` : '<p>Hết xí ngầu → làm cảnh (không tính vào giới hạn 2 Nhà).</p>') : b.trigger === 'use' ? `<p>Đi 1 ô miễn phí mỗi lượt (kéo sang ô kề). <button class="btn sm primary" data-vadj="use">▶ Dùng xe</button> — xe rời sân sau khi hiệu ứng xong.</p>` : '<p>Tự chặn 1 đòn đơn của đối thủ vào đồng đội kề xe, rồi rời sân.</p>') : '';
+    const ctl = v.o === 'P' ? (b.kind === 'house' ? (u.counter > 0 ? `<p>🎲 còn ${u.counter} lần · tự kích hoạt ${b.trigger === 'start' ? 'Đầu' : 'Cuối'} lượt bạn. <button class="btn sm" data-vadj="house">▶ Chạy ngay</button></p>` : '<p>🎲 0 lần kích hoạt — Nhà vẫn ở lại sân, không tính vào giới hạn 2 Nhà. Bấm + nếu có hiệu ứng tăng lần kích hoạt.</p>') : b.trigger === 'use' ? `<p>Đi 1 ô miễn phí mỗi lượt (kéo sang ô kề). <button class="btn sm primary" data-vadj="use">▶ Dùng xe</button> — xe rời sân sau khi hiệu ứng xong.</p>` : '<p>Tự chặn 1 đòn đơn của đối thủ vào đồng đội kề xe, rồi rời sân.</p>') : '';
     el.innerHTML = `<img class="big" src="${bldImg(u.id)}" alt=""><p><b>${esc(b.name)}</b> · ${b.kind === 'house' ? 'Nhà' : 'Xe'} — ${esc(b.text_vn)}</p>${ctl}`; return;
   }
   const hidden = v.o === 'B' && S.phase === 'place';
@@ -1187,6 +1252,7 @@ function bindUI() {
     const t = e.target;
     if (t.closest('[data-close]')) { closeModal(); return; }
     if (t.closest('[data-unpin]')) { viewPin = false; hideViewer(true); return; }
+    const te = t.closest('[data-toenergy]'); if (te) { e.stopPropagation(); dieToEnergy(+te.dataset.toenergy); return; }
     const dp = t.closest('[data-diepick]'); if (dp) { endDiePick(null); return; }
     const rc = t.closest('[data-recolor]'); if (rc) { endDiePick(rc.dataset.recolor); return; }
     const ea = t.closest('[data-eact]'); if (ea) { energyAct(ea.dataset.eact, ea); return; }
@@ -1253,6 +1319,7 @@ function doAct(a) {
     case 'reroll': rerollSelected(false); break;
     case 'endturn': endPlayerTurn(); break;
     case 'hint': playerHint(); break;
+    case 'cancelassign': if (pendingPick && S.assignCtx && !S.assignCtx.confirmed) finishPick(CANCEL); break;
     case 'ready': startGame(); break;
     case 'newgame': closeModal(); setupModal(); break;
     case 'dlstats': download('karian-stats.json', loadStats()); break;
