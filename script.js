@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '8.2.0';   // trùng với ?v= trong index.html
+const APP_VER = '8.3.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -41,9 +41,9 @@ const sum = a => a.reduce((x, y) => x + y, 0);
 
 /* ================= dữ liệu ================= */
 let D = null; const MON = {}; const BLD = {};
-const monImg = id => 'assets/cards/monsters/' + encodeURIComponent(id) + '.png';
-const bldImg = id => 'assets/cards/buildings/' + encodeURIComponent(id) + '.png';
-const BACK_M = 'assets/cards/back-monster.png', BACK_B = 'assets/cards/back-building.png';
+const monImg = id => 'assets/cards/monsters/' + encodeURIComponent(id) + '.webp';   // .webp (nhẹ hơn ~8 lần); bản .png gốc giữ lại để in
+const bldImg = id => 'assets/cards/buildings/' + encodeURIComponent(id) + '.webp';
+const BACK_M = 'assets/cards/back-monster.webp', BACK_B = 'assets/cards/back-building.webp';
 const TOK = { pain: 'assets/tokens/pain.svg', stun: 'assets/tokens/stun.svg', weak: 'assets/tokens/weak.svg', rage: 'assets/tokens/rage.svg', shield: 'assets/tokens/shield.svg', energy: 'assets/tokens/energy.png' };
 const elIcon = e => 'assets/icons/' + e + '.png';
 const artImg = id => 'assets/art/monsters/' + encodeURIComponent(id) + '.webp';     // A · ảnh quái gốc (Karian-Library/Monster system)
@@ -518,7 +518,8 @@ function moveBeam(x, y) {
   svg.classList.toggle('lock', !!hit);
 }
 function stopBeam() { beam = null; const svg = document.getElementById('beam'); if (svg) svg.setAttribute('class', 'beam'); }
-document.addEventListener('mousemove', e => { if (beam) moveBeam(e.clientX, e.clientY); });
+let beamRAF = 0, beamXY = null;
+document.addEventListener('mousemove', e => { if (!beam) return; beamXY = [e.clientX, e.clientY]; if (!beamRAF) beamRAF = requestAnimationFrame(() => { beamRAF = 0; if (beam && beamXY) moveBeam(beamXY[0], beamXY[1]); }); });
 /** ↶ Huỷ: gán xí ngầu (trước khi xác nhận) hoặc thao tác năng lượng đang chọn mục tiêu — không mất ✦ */
 function cancelAction() {
   if (!S) return;
@@ -981,7 +982,11 @@ function bindDnD() {
       if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
       d.on = true; dragData = d.data; viewPin = false;
       const r = d.src.getBoundingClientRect();
-      const g = d.src.cloneNode(true); g.removeAttribute('data-drag'); g.classList.add('dragghost');
+      // bóng kéo: quái / công trình trên sân phải nằm trong 1 khung .cell để ảnh giữ đúng cỡ ô (không bung ra cỡ ảnh gốc)
+      const c = d.src.cloneNode(true); c.removeAttribute('data-drag'); c.classList.remove('dragsrc');
+      let g = c;
+      if (d.src.classList.contains('unit')) { g = document.createElement('div'); g.className = 'cell'; g.appendChild(c); }
+      g.classList.add('dragghost');
       Object.assign(g.style, { width: r.width + 'px', height: r.height + 'px' });
       d.ox = d.x - r.left; d.oy = d.y - r.top; d.ghost = g; document.body.appendChild(g);
       d.src.classList.add('dragsrc'); document.body.classList.add('dragging');
@@ -989,11 +994,16 @@ function bindDnD() {
     }
     e.preventDefault();
     d.ghost.style.transform = `translate(${e.clientX - d.ox}px,${e.clientY - d.oy}px) rotate(-4deg) scale(1.06)`;
-    const { cell, hand } = dropTargetAt(e.clientX, e.clientY);
+    d.px = e.clientX; d.py = e.clientY; if (d.raf) return;
+    d.raf = requestAnimationFrame(() => { d.raf = 0; if (pdrag === d) markDropTarget(d); });
+  }, { passive: false });
+  addEventListener('blur', () => { if (pdrag) endPDrag({}, false); });
+  function markDropTarget(d) {
+    const { cell, hand } = dropTargetAt(d.px, d.py);
     document.querySelectorAll('.cell.over,.hand.over').forEach(x => { if (x !== cell && x !== hand) x.classList.remove('over'); });
     if (cell && (cell.dataset.o === 'P' || d.data.type === 'die')) cell.classList.add('over');
     if (hand && d.data.type === 'cell') hand.classList.add('over');
-  }, { passive: false });
+  }
   document.addEventListener('pointerup', e => { if (pdrag && e.pointerId === pdrag.id) endPDrag(e, true); });
   document.addEventListener('pointercancel', e => { if (pdrag && e.pointerId === pdrag.id) endPDrag(e, false); });
   document.addEventListener('click', e => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); swallowClick = false; } }, true);
@@ -1035,6 +1045,8 @@ function sparkLines() {
     g.innerHTML = edges.map(l => `<span class="gl ${l.v ? 'v' : 'h'}${l.rev ? ' rev' : ''}" style="${l.v ? `left:${l.at * 100}%;top:0;height:100%` : `top:${l.at * 100}%;left:0;width:100%`};--d:${l.d}s;--dl:${l.dl}s"><i></i><i style="animation-delay:calc(var(--dl) - ${(l.d / 2).toFixed(1)}s)"></i></span>`).join('');
   });
 }
+let alignRAF = 0;
+function scheduleAlign() { if (!alignRAF) alignRAF = requestAnimationFrame(() => { alignRAF = 0; alignBackground(); }); }
 function alignBackground() {
   const b = document.getElementById('board'); if (!b) return;
   const st = document.getElementById('status');
@@ -1044,8 +1056,8 @@ function alignBackground() {
   }
   if (innerWidth <= 1100) { document.body.style.backgroundSize = ''; document.body.style.backgroundPosition = ''; return; }
   const r = b.getBoundingClientRect(), kx = (r.width / 5) / BG.tx, ky = (r.height / 7) / BG.ty;
-  document.body.style.backgroundSize = `${BG.w * kx}px ${BG.h * ky}px, cover`;
-  document.body.style.backgroundPosition = `${r.left - BG.x0 * kx}px ${r.top - BG.y0 * ky}px, center`;
+  document.body.style.backgroundSize = `${BG.w * kx}px ${BG.h * ky}px`;
+  document.body.style.backgroundPosition = `${r.left - BG.x0 * kx}px ${r.top - BG.y0 * ky}px`;
 }
 /** đổi emoji 🍇 trong chữ hiển thị thành icon trái cây chuẩn (GLITTER_FRUIT) */
 const FRUIT_IMG = 'assets/icons/Fruit.webp';
@@ -1058,7 +1070,7 @@ function fruitify(root) {
 function render(animDice) {
   if (!S) return;
   renderStatus(); renderSteps(); renderGrid('B'); renderGrid('P'); renderTray(animDice); renderInfo('P'); renderInfo('B'); renderHand(); renderViewer();
-  alignBackground(); fruitify(document.querySelector('.layout')); fruitify($('#status'));
+  scheduleAlign(); fruitify(document.querySelector('.layout')); fruitify($('#status'));
 }
 const fmtTime = ms => { const t = Math.floor(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 function renderSteps() {
@@ -1457,7 +1469,7 @@ function bindUI() {
   $('#btnNew').onclick = () => setupModal();
   $('#btnRules').onclick = () => rulesModal();
   $('#btnCards').onclick = () => { if (D) cardsModal(); };
-  addEventListener('resize', alignBackground); setTimeout(alignBackground, 50);
+  addEventListener('resize', scheduleAlign); setTimeout(alignBackground, 50);
   sparkLines();
   $('#btnEnd').onclick = () => endSession();
   setInterval(() => { if (S && S.phase === 'play' && !S.over) renderStatus(); }, 1000);
@@ -1579,6 +1591,7 @@ function newGame(st) {
   S = { tier, phase: 'place', round: 1, maxRounds: D.rules.modes['1v1'].rounds, turn: 'P', first: st.first === 'random' ? (Math.random() < 0.5 ? 'P' : 'B') : st.first,
     sides: { P: mkSide(pIds), B: mkSide(bIds) }, over: false, busy: false, firstTurn: true, step: 0, turnCount: 0, startTime: Date.now(), hoverDie: null,
     stats: { P: { gained: 0, spent: 0, blds: [] }, B: { gained: 0, spent: 0, blds: [] } }, teams: { P: pIds.slice(), B: bIds.slice() }, buildings: tier === 'standard' && st.buildings, bldDeck: shuffle(D.buildings.map(b => b.id)), chooseColors: 0, colorPick: [] };
+  for (const k in FX) delete FX[k]; for (const k in HPV) delete HPV[k];
   viewSel = null; viewPin = false; renderViewer(); picked = null; pendingPick = null; diePick = null; banner(''); showResultScene(null); stopBeam();
   $('#log').innerHTML = '';
   log(`Ván mới · tầng <b>${TIERS[tier].name}</b>. Máy dùng: <b>${esc(bName)}</b>.`, null, 't');
@@ -1622,7 +1635,7 @@ function rulesModal() {
   openModal(`<h2>Luật nhanh v6.5</h2>
     <p><b>Lượt 5 bước:</b> Đầu lượt (bỏ Khiên, Đau −2 ❤, nội tại) → Thảy 5 xí ngầu (thảy lại 1 lần) → Gán xí ngầu (viên hệ X kích hoạt 1 quái hệ X theo mặt) → Thi triển → Cuối lượt (bỏ Choáng/Yếu/Hăng hái; viên dư +1 ✦, giữ tối đa 3).</p>
     <p><b>Trên bàn này:</b> kéo xí ngầu lên quái để thi triển; ô viền đỏ là mục tiêu hợp lệ (Cận chiến chỉ đánh hàng gần nhất, Khiêu khích che đồng đội kề, Xuyên bỏ qua Khiêu khích). Nút −/+ trên thẻ để chỉnh ❤ tay; Khiên & trạng thái chỉnh ở khung xem thẻ.</p>
-    <div class="rules">${refs.map(r => `<img src="assets/cards/reference/${encodeURIComponent(r)}.png" alt="${esc(r)}" loading="lazy">`).join('')}</div>
+    <div class="rules">${refs.map(r => `<img src="assets/cards/reference/${encodeURIComponent(r)}.webp" alt="${esc(r)}" loading="lazy">`).join('')}</div>
     <div class="foot"><button class="btn primary" data-close>Đóng</button></div>`);
 }
 

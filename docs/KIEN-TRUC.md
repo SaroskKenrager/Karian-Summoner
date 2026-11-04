@@ -249,8 +249,8 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=8.2.0` và `script.js?v=8.2.0`
-- `script.js`: `const APP_VER = '8.2.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=8.3.0` và `script.js?v=8.3.0`
+- `script.js`: `const APP_VER = '8.3.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.
 
@@ -260,3 +260,13 @@ Game không dùng drag & drop có sẵn của trình duyệt (HTML5) vì nó kh�
 Thay vào đó `bindDnD()` dùng **Pointer Events** (chuột, cảm ứng, bút như nhau): nhấn giữ đối tượng có `data-drag`, kéo quá 6px thì
 một bản sao (`.dragghost`) bay theo con trỏ, ô sân / vách che dưới con trỏ sáng lên (`.over`), thả ra thì gọi `dropOn()` / `unsummon()`.
 Không đặt lại `draggable="true"` cho phần tử nào, nếu không trình duyệt sẽ tự kéo và huỷ thao tác.
+
+## 13. Hiệu năng (v8.3)
+
+- **Ảnh thẻ dùng WebP** (`assets/cards/**/*.webp`, tổng ~2.6 MB) thay vì PNG (~20 MB). Bản PNG gốc vẫn giữ trong repo để in;
+  khi cắt lại thẻ bằng `tools/extract_cards.js`, nhớ chuyển sang WebP: `convert X.png -quality 86 X.webp`.
+- **Hiệu ứng chạy liên tục chỉ animate `transform` và `opacity`** (card đồ hoạ tự xử lý). Không animate `top`, `left`, `width`,
+  `background-position` hay đổi `filter: blur()` mỗi khung hình — những thứ đó bắt trình duyệt tính lại bố cục / vẽ lại.
+- Các việc chạy theo chuột (dải sáng, ô đích khi kéo) và việc căn ảnh nền được gộp **tối đa 1 lần mỗi khung hình**
+  (`requestAnimationFrame`).
+- Ván mới dọn bộ nhớ hiệu ứng (`FX`, `HPV`).
