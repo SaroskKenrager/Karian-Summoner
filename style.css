@@ -285,9 +285,8 @@ body.scene-lose .layout{filter:grayscale(.55) brightness(.92)}
    ===================================================================== */
 :root{--tile:clamp(56px, calc((100vh - var(--top) - 30px) / 7), 140px);--glass:rgb(255 255 255/.58);--glassbd:rgb(34 27 69/.45)}
 body{background:#26522c url(assets/board/forest.webp) center/cover fixed}
-.layout{display:grid;grid-template-columns:190px 205px auto 275px;justify-content:center;gap:16px;padding:12px;height:calc(100vh - var(--top))}
-body.nolog .layout{grid-template-columns:205px auto 275px}
-body.nolog .col-log{display:none}
+.layout{display:grid;grid-template-columns:220px 205px auto 275px;justify-content:center;gap:16px;padding:12px;height:calc(100vh - var(--top))}
+body.nolog .col-log .logbox{display:none}
 .col{display:flex;flex-direction:column;gap:10px;min-height:0;min-width:0}
 /* bảng trong suốt */
 .col>section{background:var(--glass);backdrop-filter:blur(8px) saturate(1.1);-webkit-backdrop-filter:blur(8px) saturate(1.1);border:1.5px solid var(--glassbd);border-radius:16px;padding:10px;box-shadow:0 6px 18px rgb(0 0 0/.18)}
@@ -398,7 +397,7 @@ body.nolog .col-log{display:none}
   .topbar{height:auto;flex-wrap:wrap;padding:6px 10px;gap:6px}
   .brand{font-size:16px}.brand small{display:none}.brand img{width:28px;height:28px}
   .status{order:3;flex-basis:100%}
-  .layout,body.nolog .layout{display:flex;flex-direction:column;height:auto;padding:8px;gap:10px}
+  .layout{display:flex;flex-direction:column;height:auto;padding:8px;gap:10px}
   .board{order:-2;align-self:center}
   .col-right{order:-1;overflow:visible}
   .col-log .logbox{max-height:240px}
@@ -408,3 +407,36 @@ body.nolog .col-log{display:none}
   .cardpop{left:8px!important;right:8px;width:auto;top:auto!important;bottom:8px;max-height:70vh}
 }
 .cardpop:not(.pinned){pointer-events:none}
+
+/* =====================================================================
+   v7.5 · lá bài cố định góc trái trên · nút Gợi ý / khắc hệ không nền · thanh máu gộp
+   ===================================================================== */
+.col-log .cardview{flex:none;max-height:64%;overflow:auto;position:relative;padding:8px}
+.col-log .logbox{flex:1;min-height:90px}
+.cardview img.big{width:100%;max-width:none;display:block;margin:0 0 6px;border-radius:10px}
+.cardview p{font-size:12px;line-height:1.3}
+.cardview .special{font-size:11.5px}
+.cardview .vhint{margin:0;font-size:12px}
+.cardview .pin{position:absolute;left:12px;bottom:auto;top:12px;z-index:2;padding:0 6px}
+.cardview:not(.pinned) .ctl{display:none}
+.cardview:not(.pinned):has(img.big)::after{content:"Bấm vào quái để ghim & chỉnh ❤ / Khiên / trạng thái";display:block;font-size:10.5px;color:var(--ink2);margin-top:2px}
+.cardview .ctl{grid-template-columns:52px minmax(0,1fr);font-size:12px}
+
+/* ô Gợi ý & vòng khắc hệ: không nền, không viền */
+.slot-hint .btn{background:transparent;border:0;box-shadow:none;color:#fff;text-shadow:0 1px 0 var(--ink),0 0 4px var(--ink),0 0 8px rgb(34 27 69/.6)}
+.slot-hint .btn b{filter:drop-shadow(0 2px 2px rgb(34 27 69/.5))}
+.slot-hint .btn:not(:disabled):hover{background:rgb(255 255 255/.18)}
+.slot-hint .btn:active{transform:translateY(2px)}
+.board .wheel{background:transparent;border:0;box-shadow:none;padding:0;filter:drop-shadow(0 2px 3px rgb(34 27 69/.45))}
+.board .wheel svg text{paint-order:stroke;stroke:#fff;stroke-width:2.2px}
+
+/* thanh máu gộp: 1 thanh đỏ có chữ, phần vừa mất (vàng nhạt) tụt dần, chớp khi trúng đòn */
+.board .ov{padding:2px 3px}
+.hpbar1{position:relative;height:calc(var(--tile)*.085 + 9px);border-radius:8px;background:rgb(34 27 69/.82);overflow:hidden;box-shadow:0 0 0 1.5px rgb(34 27 69/.9)}
+.hpbar1 i{position:absolute;left:0;top:0;bottom:0;z-index:1;background:linear-gradient(180deg,#ff7a5c,#e04b3e 55%,#b8322a);transition:width .2s;border-radius:0}
+.hpbar1 .lag{position:absolute;left:0;top:0;bottom:0;width:var(--to);background:#fff3b0}
+.hpbar1.drain .lag{animation:drain .7s calc(350ms + var(--fxd)) both}
+.hpbar1.drain{animation:hpflash .6s var(--fxd) both}
+@keyframes hpflash{0%,40%,80%{box-shadow:0 0 0 2px #fff,0 0 8px 2px #ff5a45}20%,60%,100%{box-shadow:0 0 0 1.5px rgb(34 27 69/.9)}}
+.hpbar1 span{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;height:100%;color:#fff;font-family:var(--display);font-weight:800;font-size:calc(var(--tile)*.075 + 4px);line-height:1;text-shadow:0 1px 0 rgb(34 27 69/.9),0 0 3px rgb(34 27 69/.8);padding-top:1px}
+@media (max-width:1100px){ .col-log .cardview{max-height:none} }

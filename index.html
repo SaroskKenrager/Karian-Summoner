@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Be+Vietnam+Pro:wght@500;600;700&display=swap" rel="stylesheet">
 <!-- ?v=… : đổi số mỗi lần cập nhật để trình duyệt tải file mới, không dùng bản cũ trong bộ nhớ đệm -->
-<link rel="stylesheet" href="style.css?v=7.4.0">
+<link rel="stylesheet" href="style.css?v=7.5.0">
 </head>
 <body>
 <header class="topbar">
@@ -23,8 +23,9 @@
 </header>
 
 <main class="layout">
-  <!-- Cột 1: nhật ký (ẩn/hiện bằng nút trên thanh trên cùng) -->
+  <!-- Cột 1: lá bài đang xem (cố định, góc trái trên) + nhật ký (ẩn/hiện bằng nút trên thanh trên cùng) -->
   <aside class="col col-log" id="colLog">
+    <section class="viewer cardview" id="viewer"></section>
     <section class="logbox"><h3>Nhật ký</h3><ol id="log"></ol></section>
   </aside>
 
@@ -60,8 +61,7 @@
   </aside>
 </main>
 
-<!-- thẻ lớn: chỉ hiện khi trỏ vào quái / thẻ; bấm để ghim -->
-<section class="viewer cardpop" id="viewer" hidden></section>
+
 
 
 <!-- dải sáng khi chọn mục tiêu (năng lượng / kỹ năng) -->
@@ -70,6 +70,6 @@
 <div class="toast" id="toast" hidden></div>
 <div class="modal" id="modal" hidden><div class="modal-card" id="modalCard"></div></div>
 
-<script src="script.js?v=7.4.0"></script>
+<script src="script.js?v=7.5.0"></script>
 </body>
 </html>

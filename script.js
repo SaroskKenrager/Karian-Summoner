@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '7.4.0';   // trùng với ?v= trong index.html
+const APP_VER = '7.5.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -104,7 +104,7 @@ function hpLine(u) {
   if (h.hp !== u.hp) { h.from = h.hp; h.hp = u.hp; h.t = now; }
   const el = now - h.t, drop = h.from > u.hp && el < 1200;
   const pct = v => Math.max(0, Math.min(100, v / u.maxHp * 100)).toFixed(1) + '%';
-  return { el: Math.round(el), cls: drop ? ' drain' : '', html: `<div class="hpline${drop ? ' drain' : ''}" style="--from:${pct(h.from)};--to:${pct(u.hp)};--fxd:-${Math.round(el)}ms"><b class="lag"></b><i style="width:${pct(u.hp)}"></i></div>` };
+  return { el: Math.round(el), cls: drop ? ' drain' : '', html: `<div class="hpbar1${drop ? ' drain' : ''}" style="--from:${pct(h.from)};--to:${pct(u.hp)};--fxd:-${Math.round(el)}ms" title="❤ ${u.hp}/${u.maxHp} — chỉnh ❤ ở thẻ lớn (bấm vào quái)"><b class="lag"></b><i style="width:${pct(u.hp)}"></i><span>❤ ${u.hp}/${u.maxHp}</span></div>` };
 }
 const uName = u => `<b>${esc(M(u).name)}</b>`;
 /** Nội tại / Ngưỡng / Di nguyện / Nhà kích hoạt: ghi nhật ký nổi bật + toast */
@@ -933,7 +933,7 @@ function renderGrid(o) {
         <span class="uname"><img src="${elIcon(m.element)}" alt="">${esc(m.name)}</span>
         ${isTaunt(u) ? '<span class="kwt" title="Khiêu khích">🛡</span>' : ''}
         ${tokensHtml(u)}${badge}
-        ${(() => { const hl = hpLine(u); return `<div class="ov"><div class="hpbar${hl.cls}" style="--fxd:-${hl.el}ms"><button data-adj="hp-" title="−1 ❤">−</button><span>❤ ${u.hp}/${u.maxHp}</span><button data-adj="hp+" title="+1 ❤">+</button></div>${hl.html}</div>`; })()}
+        <div class="ov">${hpLine(u).html}</div>
         ${tauntUp.has(i) ? '<span class="tauntlab">🛡 Khiêu khích</span>' : ''}${covered.has(i) ? '<span class="covlab">được che</span>' : ''}
       </div>`;
     } else if (u && u.kind === 'bld') {
@@ -1140,32 +1140,16 @@ function findView(key) {
 /* thẻ lớn: hiện khi trỏ chuột vào quái / thẻ, ẩn khi rời đi; bấm vào quái để ghim (hiện nút chỉnh ❤, Khiên, trạng thái) */
 let viewPin = false, viewAnchor = null, viewHideT = 0;
 function showViewer(key, anchor) {
-  clearTimeout(viewHideT);
-  if (key !== viewSel || $('#viewer').hidden) { viewSel = key; viewAnchor = anchor || viewAnchor; renderViewer(); }
+  if (key !== viewSel) { viewSel = key; viewAnchor = anchor || viewAnchor; renderViewer(); }
 }
-function hideViewer(force) {
-  if (viewPin && !force) return;
-  clearTimeout(viewHideT);
-  viewHideT = setTimeout(() => { if (!viewPin || force) { viewPin = false; $('#viewer').hidden = true; $('#viewer').classList.remove('pinned'); } }, force ? 0 : 160);
-}
-function placeViewer() {
-  const el = $('#viewer'), b = $('#board').getBoundingClientRect(), W = el.offsetWidth || 290, Hh = el.offsetHeight || 420;
-  if (innerWidth <= 1100) return;
-  const a = viewAnchor && viewAnchor.getBoundingClientRect ? viewAnchor.getBoundingClientRect() : b;
-  const inBoard = a.left >= b.left - 2 && a.right <= b.right + 2;
-  let left = inBoard ? b.right + 14 : a.left - W - 14;
-  if (left + W > innerWidth - 8) left = b.left - W - 14;
-  if (left < 8) left = 8;
-  const top = Math.max(70, Math.min(a.top - 30, innerHeight - Hh - 10));
-  el.style.left = left + 'px'; el.style.top = top + 'px';
-}
+/** rời chuột: thẻ cố định vẫn giữ thẻ vừa xem; force = bỏ ghim (ẩn nút chỉnh) */
+function hideViewer(force) { if (force && viewPin) { viewPin = false; renderViewer(); } }
 function renderViewer() {
   const v = findView(viewSel), el = $('#viewer');
-  if (!v) { el.hidden = true; return; }
-  el.hidden = false; el.classList.toggle('pinned', viewPin);
+  el.classList.toggle('pinned', viewPin);
+  if (!v) { el.innerHTML = '<p class="muted vhint">Trỏ chuột vào quái hoặc thẻ để xem lá bài ở đây. Bấm vào quái để ghim & chỉnh ❤ / Khiên / trạng thái.</p>'; return; }
   renderViewerInner(v, el);
-  if (viewPin) el.insertAdjacentHTML('afterbegin', '<button class="btn sm pin" data-unpin title="Đóng">✕</button>');
-  placeViewer();
+  if (viewPin) el.insertAdjacentHTML('afterbegin', '<button class="btn sm pin" data-unpin title="Bỏ ghim">✕</button>');
 }
 function renderViewerInner(v, el) {
   const u = v.u;
@@ -1259,7 +1243,6 @@ function bindUI() {
   let hideLog = false; try { hideLog = localStorage.getItem('karian_nolog') === '1'; } catch (_) { }
   setLog(hideLog);
   $('#btnLog').onclick = () => setLog(!document.body.classList.contains('nolog'));
-  addEventListener('resize', () => { if (!$('#viewer').hidden) placeViewer(); });
   $('#btnEnd').onclick = () => endSession();
   setInterval(() => { if (S && S.phase === 'play' && !S.over) renderStatus(); }, 1000);
   $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && S && S.phase !== 'setup') closeModal(); });
@@ -1379,7 +1362,7 @@ function newGame(st) {
   S = { tier, phase: 'place', round: 1, maxRounds: D.rules.modes['1v1'].rounds, turn: 'P', first: st.first === 'random' ? (Math.random() < 0.5 ? 'P' : 'B') : st.first,
     sides: { P: mkSide(pIds), B: mkSide(bIds) }, over: false, busy: false, firstTurn: true, step: 0, turnCount: 0, startTime: Date.now(), hoverDie: null,
     stats: { P: { gained: 0, spent: 0, blds: [] }, B: { gained: 0, spent: 0, blds: [] } }, teams: { P: pIds.slice(), B: bIds.slice() }, buildings: tier === 'standard' && st.buildings, bldDeck: shuffle(D.buildings.map(b => b.id)), chooseColors: 0, colorPick: [] };
-  viewSel = null; viewPin = false; $('#viewer').hidden = true; picked = null; pendingPick = null; diePick = null; banner(''); showResultScene(null); stopBeam();
+  viewSel = null; viewPin = false; renderViewer(); picked = null; pendingPick = null; diePick = null; banner(''); showResultScene(null); stopBeam();
   $('#log').innerHTML = '';
   log(`Ván mới · tầng <b>${TIERS[tier].name}</b>. Máy dùng: <b>${esc(bName)}</b>.`, null, 't');
   // Máy đặt quân úp

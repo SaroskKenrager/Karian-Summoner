@@ -111,8 +111,11 @@ Mỗi kỹ năng trong JSON là một danh sách hiệu ứng, ví dụ:
   → `assets/board/forest.webp`.
 - **Bảng thông tin** (nhật ký, Máy, thứ tự lượt, Bạn, vách che) nằm xa bàn, nền trong suốt mờ (`--glass`, `backdrop-filter`).
   Nút **📜 Ẩn nhật ký** trên thanh trên cùng (trình duyệt nhớ lựa chọn).
-- **Thẻ lớn** chỉ hiện khi trỏ chuột vào quái / thẻ (`showViewer` / `hideViewer`), đặt cạnh bàn; bấm vào quái để **ghim**
-  và hiện nút chỉnh ❤ / Khiên / trạng thái, ✕ để đóng. Khi chưa ghim, thẻ không chặn chuột (kéo thả vẫn được).
+- **Lá bài đang xem** cố định ở góc trái trên (cột 1), **nhật ký** ngắn ngay bên dưới. Trỏ chuột vào quái / thẻ → lá bài đổi theo;
+  bấm vào quái để **ghim** và hiện nút chỉnh ❤ / Khiên / trạng thái, ✕ để bỏ ghim. Nút 📜 chỉ ẩn phần nhật ký, lá bài vẫn ở đó.
+- **Thanh máu** trên sân là 1 thanh đỏ có ghi `❤ hiện tại/tối đa`; khi mất ❤, phần vừa mất (vàng nhạt) tụt dần và thanh chớp sáng.
+  Chỉnh ❤ bằng tay ở lá bài đã ghim.
+- Nút **💡 Gợi ý** và **vòng khắc hệ** ở hai góc dưới bàn không có nền / viền, đứng thẳng trên cỏ.
 - Dưới 1100px (điện thoại): bàn cờ lên đầu, vách che ngay dưới, rồi tới các bảng khác; thẻ lớn hiện ở đáy màn hình.
 
 ## 4. Mẹo tối ưu giao diện card game
@@ -235,7 +238,7 @@ Trình duyệt (và GitHub Pages, khoảng 10 phút) giữ bản cũ của `styl
 Nếu `index.html` mới mà `style.css` cũ thì giao diện vỡ: panel mất nền, khay xí ngầu to bất thường, sân bị dạt sang phải.
 
 Cách chống: tên file kèm số phiên bản. **Mỗi lần cập nhật, đổi cả 3 chỗ cho cùng một số:**
-- `index.html`: `style.css?v=7.4.0` và `script.js?v=7.4.0`
-- `script.js`: `const APP_VER = '7.4.0';` (dùng cho `data/karian_data.json`)
+- `index.html`: `style.css?v=7.5.0` và `script.js?v=7.5.0`
+- `script.js`: `const APP_VER = '7.5.0';` (dùng cho `data/karian_data.json`)
 
 Gặp giao diện lạ: nhấn **Ctrl + F5** (Mac: Cmd + Shift + R) để tải lại hoàn toàn.
