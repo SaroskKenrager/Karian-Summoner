@@ -4,7 +4,7 @@
  * Dữ liệu: data/karian_data.json (luật v6.5 + 41 quái + 16 Công trình/Xe).
  */
 'use strict';
-const APP_VER = '8.7.0';   // trùng với ?v= trong index.html
+const APP_VER = '8.8.0';   // trùng với ?v= trong index.html
 
 /* ================= hằng số ================= */
 const EL_ORDER = ['Water', 'Fire', 'Grass', 'Rock', 'Lightning'];
@@ -870,6 +870,7 @@ async function botTurn() {
       const d = cand[0].d, b0 = EL_VI[d.el] + ' ' + d.face; d.face = d6(); d.anim = true; spend('B', 1, `thảy lại ${b0} → ${d.face}`); render(true); await sleep(550);
     }
   }
+  if (S.botBld) await botVehicles('pre');   // Train Stop (+2 ✦) trước khi đổi màu
   let plan = planBot(s.dice);
   // đổi màu: viên đã thành ✦ → màu của quái còn rảnh có kỹ năng ở mặt đó
   while (t.energyActs && !houseActive('B') && s.energy >= 3) {
@@ -900,6 +901,8 @@ async function botTurn() {
   }
   if (S.over) return;
   if (botSummon()) { render(); await sleep(400); }   // quái chết giữa lượt → vẫn gọi được
+  if (S.botBld && !S.over) { await botVehicles('post'); await botDrawBuilding(); if (!S.over) await botVehicles('post'); }
+  if (S.over) return;
   // dồn ✦ thành Khiên (ưu tiên quái Khiêu khích, rồi quái ít ❤ + Khiên nhất); giữ 3 ✦ nếu đội có 2 quái cùng hệ để đổi màu
   if (!t.noEnergy) {
     const aliveEls = [...monsOf('B').map(i => s.grid[i]), ...s.reserve].map(u => M(u).element);
@@ -910,6 +913,72 @@ async function botTurn() {
     }
   }
   await sleep(300);
+}
+
+/* ================= MÁY · Công trình & Xe (Expansion Super) =================
+ * Công trình như "quái hỗ trợ": dùng nhiều nhất ở giữa trận (vòng 3–5) để ép sát thương, giữ quái sống, gây trạng thái xấu.
+ * Đầu trận (1–2): chỉ rút khi ✦ sắp tràn. Cuối trận (6–8): ưu tiên giữ ✦ để đổi màu / thảy lại, chỉ rút khi dư ✦.
+ */
+const bldOn = (o, kind) => side(o).grid.filter(x => x && x.kind === 'bld' && BLD[x.id].kind === kind && (kind === 'vehicle' || x.counter > 0)).length;
+function botBldPhase() { return S.round <= 2 ? 'early' : S.round <= 5 ? 'mid' : 'late'; }
+function botWantsDraw() {
+  const s = side('B'), ph = botBldPhase();
+  if (s.drew || s.energy < 2 || !S.bldDeck.length) return false;
+  if (![0, 1, 2, 3, 4, 5, 6, 7, 8].some(i => !s.grid[i])) return false;
+  if (bldOn('B', 'house') >= D.rules.buildings.max_houses && bldOn('B', 'vehicle') >= D.rules.buildings.max_vehicles) return false;
+  if (ph === 'mid') return true;
+  return s.energy >= 3;   // đầu / cuối trận: chỉ khi ✦ đầy (sắp tràn)
+}
+function botPlaceCell(id) {
+  const s = side('B'), B = BLD[id], empty = [0, 1, 2, 3, 4, 5, 6, 7, 8].filter(i => !s.grid[i]);
+  if (B.effect === 'block') {   // Frost Coach: đứng kề quái quý / ít ❤ nhất
+    const score = i => sum(adjIdx(i).filter(j => isMon(s.grid[j])).map(j => M(s.grid[j]).price + (s.grid[j].maxHp - s.grid[j].hp) * .5)) + (rowOf(i) === 0 ? 1 : 0);
+    return empty.sort((a, b) => score(b) - score(a))[0];
+  }
+  // các lá khác: hàng Sau, chừa ô kề quái cho dự bị
+  return empty.sort((a, b) => (rowOf(b) - rowOf(a)) || (adjIdx(a).filter(j => isMon(s.grid[j])).length - adjIdx(b).filter(j => isMon(s.grid[j])).length))[0];
+}
+async function botDrawBuilding() {
+  if (!botWantsDraw()) return;
+  const s = side('B');
+  // bỏ lá không đặt được (đã đủ Nhà / Xe) xuống đáy chồng
+  let k = S.bldDeck.length - 1;
+  while (k >= 0) { const B = BLD[S.bldDeck[k]]; if (bldOn('B', B.kind) < (B.kind === 'house' ? D.rules.buildings.max_houses : D.rules.buildings.max_vehicles)) break; k--; }
+  if (k < 0) return;
+  const id = S.bldDeck.splice(k, 1)[0], B = BLD[id];
+  spend('B', 2, `rút Công trình <b>${esc(B.name)}</b>`); s.drew = true;
+  const cell = botPlaceCell(id);
+  s.grid[cell] = { kind: 'bld', uid: UID++, id, counter: B.activations, moved: false, st: {} };
+  log(`Máy đặt ${B.kind === 'house' ? 'Nhà' : 'Xe'} <b>${esc(B.name)}</b> ở ${ROW_VI[rowOf(cell)]}-${colOf(cell) + 1} — ${esc(B.text_vn)}`, 'B');
+  fx('B', cell, 'fx-heal', 700); render(); await sleep(650);
+}
+/** đáng dùng xe này lúc này không (giá trị ước lượng) */
+function botVehicleValue(b, when) {
+  const s = side('B'), fo = side('P'), B = BLD[b.id], ph = botBldPhase();
+  const mine = monsOf('B').map(i => s.grid[i]), foes = monsOf('P').map(i => fo.grid[i]);
+  switch (B.effect) {
+    case 'energy': return when === 'pre' && s.energy <= 1 && (ph !== 'early' || !s.dice.some(d => !d.used)) ? 3 : (s.energy === 0 ? 1.5 : 0);
+    case 'ping': { const t = foes.filter(u => isTaunt(u)); const tg = t.length ? t : foes; return tg.some(u => u.hp <= B.value) ? 6 : (ph === 'mid' ? 2.5 : ph === 'late' ? 2 : 0.5); }
+    case 'heal1': return Math.max(0, ...mine.map(u => Math.min(B.value, u.maxHp - u.hp))) >= 3 ? 3 : 0;
+    case 'shieldteam': return mine.length >= 2 && (ph !== 'early' || mine.some(u => u.hp <= 4)) ? 2 + mine.filter(u => u.hp <= 5).length : 0;
+    case 'stun1': return foes.some(u => !u.st.stun && M(u).price >= 3) && ph !== 'early' ? 3 : 0;
+  }
+  return 0;
+}
+async function botVehicles(when) {
+  const s = side('B');
+  for (let i = 0; i < 9; i++) {
+    const b = s.grid[i]; if (!b || b.kind !== 'bld' || BLD[b.id].kind !== 'vehicle' || BLD[b.id].trigger !== 'use') continue;
+    if (botVehicleValue(b, when) < 2.5 || S.over) continue;
+    const B = BLD[b.id];
+    S.acting = { o: 'B', i }; render();
+    log(`Máy dùng Xe <b>${esc(B.name)}</b>: ${esc(B.text_vn)}`, 'B'); await sleep(450);
+    await runEffects('B', b, i, bldEffects(B), aiChooser, B.name);
+    S.acting = null;
+    if (s.grid[i] === b) s.grid[i] = null;
+    s.bldUsed.push(b); S.stats.B.blds.push(b.id);
+    log(`${esc(B.name)} đã giúp xong → rời sân`, 'B'); render(); await sleep(450);
+  }
 }
 
 /* ================= kéo thả / thao tác ================= */
@@ -1159,9 +1228,10 @@ function renderGrid(o) {
     } else if (u && u.kind === 'bld') {
       const b = BLD[u.id];
       const drag = o === 'P' ? `data-drag='${JSON.stringify({ type: 'cell', i })}'` : '';
+      const cnt = `<span title="xí ngầu trắng: số lần kích hoạt còn lại">🎲 ${u.counter}${u.counter ? '' : ' lần kích hoạt'}</span>`;
       const ctl = b.kind === 'house'
-        ? `<button data-adj="cnt-">−</button><span title="xí ngầu trắng: số lần kích hoạt còn lại">🎲 ${u.counter}${u.counter ? '' : ' lần kích hoạt'}</span><button data-adj="cnt+">+</button>`
-        : b.trigger === 'use' ? `<button data-adj="use">▶ Dùng xe</button>` : `<span title="${esc(b.text_vn)}">🛡 Tự chặn đòn</span>`;
+        ? (o === 'P' ? `<button data-adj="cnt-">−</button>${cnt}<button data-adj="cnt+">+</button>` : cnt)
+        : b.trigger === 'use' ? (o === 'P' ? `<button data-adj="use">▶ Dùng xe</button>` : `<span>🚌 Chờ dùng</span>`) : `<span title="${esc(b.text_vn)}">🛡 Tự chặn đòn</span>`;
       inner = `<div class="unit bld" ${drag} data-view="${o}:${i}"><span class="base"></span><img class="art" src="${bldArt(u.id)}" alt="${esc(b.name)}" draggable="false"><span class="uname">${b.kind === 'house' ? '🏠' : '🚌'} ${esc(b.name)}</span><div class="bldctl">${ctl}</div></div>`;
     } else inner = (f && f.data && f.data.id ? `<div class="unit ghost"><img class="art" src="${artImg(f.data.id)}" alt=""></div>` : '') + `<div class="empty-hint">${o === 'P' && (S.phase === 'place' || S.turn === 'P') ? ROW_VI[rowOf(i)] : ''}</div>`;
     return `<div class="${cls.join(' ')}" data-o="${o}" data-i="${i}"${f ? ` style="--fxd:-${Math.round(f.el)}ms"` : ''}>${inner}</div>`;
@@ -1533,7 +1603,7 @@ function openModal(html) { $('#modalCard').classList.remove('setupcard'); $('#mo
 function closeModal() { $('#modal').hidden = true; }
 let setup = null;
 function setupModal() {
-  setup = { tier: 'starter', set: D.starter_sets[0].id, picks: [], draft: null, buildings: true, first: 'random', van0: 0 };
+  setup = { tier: 'starter', set: D.starter_sets[0].id, picks: [], draft: null, buildings: true, botBld: true, first: 'random', van0: 0 };
   drawSetup();
 }
 function draftA() { // chia theo giá: rút 2 thẻ mỗi chồng
@@ -1566,7 +1636,10 @@ function drawSetup() {
     team = `<h4>Draft A · 8 thẻ bạn rút được — chọn ${D.rules.team.min_monsters}–${D.rules.team.max_monsters} quái, tổng ≤ ${D.rules.modes['1v1'].fund} 🍇 <span class="pill">${tot} / ${D.rules.modes['1v1'].fund} 🍇 · ${st.picks.length} quái</span> <button class="btn sm" data-redraft>Rút lại</button></h4>
       <div class="draftrow"><div><div class="pickgrid">${st.draft.P.map(id => `<div class="pc ${st.picks.includes(id) ? 'on' : (tot + MON[id].price > 15 ? 'off' : '')}" data-pickm="${id}" data-pv="${id}"><img src="${monImg(id)}" alt="${id}"></div>`).join('')}</div>
       <p class="muted" style="margin:6px 0 0">Trỏ chuột vào lá để xem lớn bên phải · bấm để chọn / bỏ chọn.</p>
-      <label style="display:block;margin-top:8px"><input type="checkbox" data-bld ${st.buildings ? 'checked' : ''}> Dùng bản mở rộng Công trình & Xe (cho bạn; Máy chưa dùng)</label></div>
+      <div class="expopts"><button class="opt" data-bld="P" aria-pressed="${!!st.buildings}"><b>Dùng bản mở rộng - Expansion <img class="superlogo" src="assets/icons/super.png" alt="Super"></b><small>Bạn được rút Công trình & Xe (2 ✦)</small></button>
+      <button class="opt" data-bld="B" aria-pressed="${!!st.botBld}"><b>Máy dùng Expansion <img class="superlogo" src="assets/icons/super.png" alt="Super"></b><small>Máy rút & dùng Công trình như quái hỗ trợ</small></button></div></div>
+      <div class="elpanel"><b>Hệ của thẻ đã chọn</b><div class="elpicked">${(() => { const c = {}; st.picks.forEach(id => (c[MON[id].element] = (c[MON[id].element] || 0) + 1)); return EL_ORDER.filter(e => c[e]).map(e => `<span class="elchip"><img src="${elIcon(e)}" alt="">${EL_VI[e]}${c[e] > 1 ? ' ×' + c[e] : ''}</span>`).join('') || '<span class="muted">Chưa chọn thẻ</span>'; })()}</div>
+      <div class="elwheel">${wheelSvg(new Set(st.picks.map(id => MON[id].element)))}</div><small class="muted">Hệ chưa chọn được làm mờ</small></div>
       <div class="draftpv"><img id="draftPv" src="${monImg(pv)}" alt=""></div></div>`;
   }
   openModal(`<h2>Ván mới · 1v1 với Máy</h2>
@@ -1587,7 +1660,7 @@ function drawSetup() {
     const f = t.closest('[data-first]'); if (f) { st.first = f.dataset.first; drawSetup(); return; }
     if (t.closest('[data-redraft]')) { st.draft = draftA(); st.picks = []; drawSetup(); return; }
     const pm = t.closest('[data-pickm]'); if (pm) { const id = pm.dataset.pickm; const k = st.picks.indexOf(id); if (k >= 0) st.picks.splice(k, 1); else { if (sum(st.picks.map(x => MON[x].price)) + MON[id].price > 15) { toast('Vượt quỹ 15 🍇.'); return; } if (st.picks.length >= 6) { toast('Tối đa 6 quái.'); return; } st.picks.push(id); } drawSetup(); return; }
-    const bl = t.closest('[data-bld]'); if (bl) { st.buildings = bl.checked; return; }
+    const bl = t.closest('[data-bld]'); if (bl) { if (bl.dataset.bld === 'P') st.buildings = !st.buildings; else st.botBld = !st.botBld; drawSetup(); return; }
     if (t.closest('[data-go]')) {
       if (st.tier === 'standard' && st.picks.length < 3) { toast('Chọn ít nhất 3 quái.'); return; }
       closeModal(); newGame(st);
@@ -1617,7 +1690,7 @@ function newGame(st) {
   const mkSide = ids => ({ grid: Array(9).fill(null), reserve: ids.map(mkUnit), dead: [], exiled: [], trophies: [], energy: 0, dice: [], rolled: false, bldHand: [], bldUsed: [] });
   S = { tier, phase: 'place', round: 1, maxRounds: D.rules.modes['1v1'].rounds, turn: 'P', first: st.first === 'random' ? (Math.random() < 0.5 ? 'P' : 'B') : st.first,
     sides: { P: mkSide(pIds), B: mkSide(bIds) }, over: false, busy: false, firstTurn: true, step: 0, turnCount: 0, startTime: Date.now(), hoverDie: null,
-    stats: { P: { gained: 0, spent: 0, blds: [] }, B: { gained: 0, spent: 0, blds: [] } }, teams: { P: pIds.slice(), B: bIds.slice() }, buildings: tier === 'standard' && st.buildings, bldDeck: shuffle(D.buildings.map(b => b.id)), chooseColors: 0, colorPick: [] };
+    stats: { P: { gained: 0, spent: 0, blds: [] }, B: { gained: 0, spent: 0, blds: [] } }, teams: { P: pIds.slice(), B: bIds.slice() }, buildings: tier === 'standard' && st.buildings, botBld: tier === 'standard' && !!st.botBld, bldDeck: shuffle(D.buildings.map(b => b.id)), chooseColors: 0, colorPick: [] };
   for (const k in FX) delete FX[k]; for (const k in HPV) delete HPV[k];
   viewSel = null; viewPin = false; renderViewer(); picked = null; pendingPick = null; diePick = null; banner(''); showResultScene(null); stopBeam();
   $('#log').innerHTML = '';
@@ -1684,14 +1757,16 @@ function rulesModal() {
 }
 
 /* ================= vòng khắc hệ ================= */
-function drawWheel() {
-  const cx = 50, cy = 52, R = 34;
+function drawWheel() { $('#wheel').innerHTML = wheelSvg(); }
+/** vòng khắc hệ; active = các hệ giữ sáng (các hệ khác làm mờ) */
+function wheelSvg(active) {
+  const cx = 50, cy = 52, R = 34, dim = k => active && !active.has(k);
   const pts = EL_ORDER.map((_, i) => { const a = -Math.PI / 2 + i * 2 * Math.PI / 5; return [cx + R * Math.cos(a), cy + R * Math.sin(a)]; });
   let s = `<svg viewBox="0 0 100 106"><defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5 0 10z" fill="#221b45"/></marker></defs>`;
   EL_ORDER.forEach((k, i) => { const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % 5], dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy), u = [dx / L, dy / L], o = 11; s += `<line x1="${x1 + u[0] * o}" y1="${y1 + u[1] * o}" x2="${x2 - u[0] * o}" y2="${y2 - u[1] * o}" stroke="#221b45" stroke-width="2.4" marker-end="url(#ar)"/>`; });
-  EL_ORDER.forEach((k, i) => { const [x, y] = pts[i]; s += `<image href="${elIcon(k)}" x="${x - 10}" y="${y - 10}" width="20" height="20"/><text x="${x}" y="${y + (y > 55 ? 17 : -12)}" text-anchor="middle" font-size="8" font-weight="800" font-family="Baloo 2,sans-serif" fill="#221b45">${EL_VI[k]}</text>`; });
+  EL_ORDER.forEach((k, i) => { const [x, y] = pts[i]; s += `<image href="${elIcon(k)}" x="${x - 10}" y="${y - 10}" width="20" height="20" ${dim(k) ? 'opacity=".2" style="filter:grayscale(1)"' : ''}/><text ${dim(k) ? 'opacity=".3"' : ''} x="${x}" y="${y + (y > 55 ? 17 : -12)}" text-anchor="middle" font-size="8" font-weight="800" font-family="Baloo 2,sans-serif" fill="#221b45">${EL_VI[k]}</text>`; });
   s += `<text x="50" y="50" text-anchor="middle" font-size="7" font-weight="800" font-family="Baloo 2,sans-serif" fill="#221b45">A → B</text><text x="50" y="57" text-anchor="middle" font-size="5" font-weight="700" fill="#4a4370">khắc +1 · bị −1</text></svg>`;
-  $('#wheel').innerHTML = s;
+  return s;
 }
 
 /* ================= khởi động ================= */

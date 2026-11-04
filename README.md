@@ -57,7 +57,7 @@ Mở `tests/rules.html` sau mỗi lần sửa code: 33 ca kiểm luật lõi v6.
 
 ## Giới hạn bản thử nghiệm
 
-- Máy chưa dùng Công trình & Xe.
+- Máy dùng Công trình & Xe khi bật "Máy dùng Expansion Super" (tầng Chuẩn).
 - Di nguyện, Ngưỡng ❤, Tinh linh, Gai, Sấm truyền được xử lý tự động (tự chọn mục tiêu), kể cả với quái của bạn.
 
 Hình Tatari, icon hệ/vai trò © Farlight Games (Clash of Critters): chỉ dùng tạm để playtest, không thương mại.

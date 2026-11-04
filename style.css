@@ -855,3 +855,21 @@ html,body{overflow-x:hidden}
   .brand .btn,.topbar .tools .btn{padding:3px 7px;font-size:12px}
   .topbar .status .pill{font-size:12px;padding:1px 6px}
 }
+/* v8.8 · Expansion Super · bảng hệ đã chọn */
+.draftrow{grid-template-columns:minmax(0,560px) 170px 300px;justify-content:space-between}
+.expopts{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.expopts .opt{max-width:none;flex:1 1 240px}
+.expopts .opt b{display:flex;align-items:center;gap:6px;font-size:14.5px}
+img.superlogo{height:26px;width:auto;vertical-align:middle;filter:drop-shadow(0 1px 1px rgb(0 0 0/.25))}
+.elpanel{display:flex;flex-direction:column;align-items:center;gap:8px;border:2.5px solid var(--ink);border-radius:16px;background:#fff;padding:10px 8px;align-self:stretch;text-align:center}
+.elpanel>b{font-family:var(--display);font-size:14px;line-height:1.15}
+.elpicked{display:flex;flex-direction:column;gap:5px;width:100%;flex:1;justify-content:flex-start}
+.elchip{display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;background:var(--cream);border:1.5px solid rgb(34 27 69/.2);border-radius:999px;padding:2px 8px}
+.elchip img{width:22px;height:22px}
+.elwheel{width:140px}
+.elwheel svg{width:100%;display:block}
+@media (max-width:1100px){.draftrow{grid-template-columns:1fr}.elpanel{flex-direction:row;flex-wrap:wrap;justify-content:center}}
+.draftrow{grid-template-columns:minmax(0,500px) 170px 290px}
+.draftrow .pickgrid{max-width:500px;gap:6px}
+.expopts .opt{padding:6px 10px}.expopts .opt small{font-size:12px}
+.elpicked{flex:0 0 auto}.elwheel{margin-top:auto}
